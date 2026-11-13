@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>얼음 협곡 · FROST CANYON</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 L26 16 L16 30 L6 16Z' fill='%239fe7ff'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <canvas id="gl"></canvas>
+
+  <!-- ================= MAIN MENU ================= -->
+  <div id="menu" class="screen">
+    <button id="account-chip" class="account-chip guest" title="계정"><span class="av">👤</span><span id="account-name">게스트 · 로그인</span></button>
+    <div class="menu-shade"></div>
+
+    <div class="topbar">
+      <div class="coins" title="코인">◆ <span id="coin-count">0</span></div>
+    </div>
+
+    <div class="menu-left">
+      <div class="eyebrow">FROST CANYON · 3D</div>
+      <h1 class="title">얼음 협곡</h1>
+      <p class="lead">
+        오로라가 일렁이는 영원한 겨울의 협곡에 총성이 울린다.<br />
+        협곡에 숨어든 적 15명을 모두 처치하라.
+      </p>
+
+      <button id="btn-play" class="btn primary">플레이</button>
+      <button id="btn-duel" class="btn duel-btn">듀얼 플레이 <span class="new-tag">ONLINE</span></button>
+      <div class="tab-row">
+        <button id="btn-chars" class="btn ghost">캐릭터</button>
+        <button id="btn-weapons" class="btn ghost">무기</button>
+      </div>
+      <button id="btn-shop" class="btn ghost shop-btn">상점 <span class="new-tag">NEW</span></button>
+    </div>
+
+    <button id="btn-settings" class="gear" title="설정 · 조작법">⚙</button>
+    <div id="loadout-chip" class="loadout-chip"></div>
+
+    <!-- Mode select -->
+    <div id="panel-mode" class="panel hidden">
+      <div class="panel-head"><h2>게임 모드</h2><button class="x" data-close>✕</button></div>
+      <div class="mode-list">
+        <button class="mode-card" data-mode="training">
+          <div class="mode-ico">◎</div>
+          <div><div class="mode-name">훈련장</div><div class="mode-desc">움직이지도 공격하지도 않는 표적으로 사격 연습 · 10~80m</div></div>
+        </button>
+        <button class="mode-card" data-mode="solo">
+          <div class="mode-ico">☗</div>
+          <div><div class="mode-name">솔로</div><div class="mode-desc">나를 공격하는 AI 15명을 모두 처치하면 승리</div></div>
+        </button>
+        <button class="mode-card" data-mode="multi">
+          <div class="mode-ico">⚔</div>
+          <div><div class="mode-name">듀얼 · 듀오</div><div class="mode-desc">친구와 1대1, 또는 매칭으로 2대2 — 방 만들기/참가</div></div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Online: create / join a room -->
+    <div id="panel-duel" class="panel hidden">
+      <div class="panel-head"><h2>듀얼 플레이</h2><button class="x" data-close>✕</button></div>
+      <div class="mode-list">
+        <button id="duel-create" class="mode-card">
+          <div class="mode-ico">＋</div>
+          <div><div class="mode-name">방 만들기</div><div class="mode-desc">5글자 방 코드가 생깁니다 — 친구에게 알려 주세요</div></div>
+        </button>
+        <button id="duel-join-open" class="mode-card">
+          <div class="mode-ico">⇥</div>
+          <div><div class="mode-name">방 참가</div><div class="mode-desc">친구에게 받은 5글자 코드를 입력</div></div>
+        </button>
+        <div id="duel-join" class="join-row hidden">
+          <input id="duel-code" maxlength="5" placeholder="코드 5글자" autocomplete="off" spellcheck="false" />
+          <button id="duel-join-go" class="btn primary">참가</button>
+        </div>
+      </div>
+      <div class="hint">친구도 같은 얼음협곡.html 파일을 열고 [듀얼 플레이] → [방 참가]를 누르면 됩니다.</div>
+    </div>
+
+    <!-- Characters -->
+    <div id="panel-chars" class="panel wide hidden">
+      <div class="panel-head"><h2>캐릭터</h2><button class="x" data-close>✕</button></div>
+      <div class="split">
+        <div id="char-list" class="card-list"></div>
+        <div class="detail">
+          <div class="preview-slot"></div>
+          <div id="char-detail"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Weapons -->
+    <div id="panel-weapons" class="panel wide hidden">
+      <div class="panel-head"><h2>무기 <small class="sub">무기1 · 무기2 · 보조를 1개씩 장착 — 게임에서 1 · 2 · 3 키로 교체</small></h2><button class="x" data-close>✕</button></div>
+      <div id="weapon-tabs" class="wtabs"></div>
+      <div class="split">
+        <div id="weapon-list" class="card-list"></div>
+        <div class="detail">
+          <div class="preview-slot"><div class="drag-hint">드래그해서 360° 회전 · 휠로 확대</div></div>
+          <div id="weapon-detail"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shop: weapon skin bundles (vertical scroll) -->
+    <div id="panel-shop" class="panel shop hidden">
+      <div class="panel-head"><h2>상점 <small class="sub">무기 스킨 번들 · 스크롤해서 둘러보세요</small></h2><button class="x" data-close>✕</button></div>
+      <div id="shop-list" class="shop-list"></div>
+      <div id="shop-pop" class="shop-pop hidden">
+        <div class="pop-head"><b id="shop-pop-title"></b><button class="x" id="shop-pop-close">✕</button></div>
+        <div class="preview-slot"><div class="drag-hint">드래그해서 360° 회전 · 휠로 확대</div></div>
+      </div>
+    </div>
+
+    <!-- Settings + controls -->
+    <div id="panel-settings" class="panel hidden">
+      <div class="panel-head"><h2>설정 · 조작법</h2><button class="x" data-close>✕</button></div>
+      <div class="keys">
+        <div class="krow"><kbd>WASD</kbd><span>이동</span><kbd>Shift</kbd><span>달리기</span><kbd>Space</kbd><span>점프</span></div>
+        <div class="krow"><kbd>C</kbd><span>달리면서 슬라이딩 / 누르고 있으면 앉기</span></div>
+        <div class="krow"><kbd>좌클릭</kbd><span>사격 · 칼 베기 · 활 당기기(놓으면 발사)</span></div>
+        <div class="krow"><kbd>우클릭</kbd><span>정조준(확대) · 칼 강하게 찌르기</span></div>
+        <div class="krow"><kbd>R</kbd><span>재장전</span><kbd>F</kbd><span>무기 살펴보기</span></div>
+        <div class="krow"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><span>/ 휠 무기 교체 (무기1 · 무기2 · 보조)</span><kbd>G</kbd><span>수류탄 꺼내기</span></div>
+        <div class="krow"><kbd>E 꾹</kbd><span>프로스트: 냉기 구체 모으기 → 떼면 발사</span></div>
+        <div class="krow"><kbd>Q</kbd><kbd>E</kbd><span>캐릭터 스킬</span><kbd>Esc</kbd><span>일시정지</span></div>
+      </div>
+      <div class="settings">
+        <label>마우스 감도 <b id="set-sens-v"></b><input id="set-sens" type="range" min="0.2" max="3" step="0.05" /></label>
+        <label>음량 <b id="set-vol-v"></b><input id="set-vol" type="range" min="0" max="1" step="0.05" /></label>
+        <label>시야각(FOV) <b id="set-fov-v"></b><input id="set-fov" type="range" min="60" max="100" step="1" /></label>
+      </div>
+    </div>
+
+  </div>
+  <div id="toast" class="toast hidden"></div>
+
+  <!-- ================= Account (login) ================= -->
+  <div id="account" class="hidden">
+    <div class="login-card">
+      <div class="login-eyebrow">FROST CANYON · 3D</div>
+      <div class="login-title">얼음 협곡</div>
+      <div id="login-signed" class="hidden">
+        <div class="login-who"><span class="av">👤</span> <b id="login-nick"></b> 계정으로 로그인됨</div>
+        <button id="login-switch" class="btn primary">다른 계정으로 로그인</button>
+        <button id="login-logout" class="btn ghost">로그아웃</button>
+        <button id="login-close" class="btn ghost">닫기</button>
+      </div>
+      <div id="login-form">
+        <div class="login-tabs"><button data-tab="login" class="on">로그인</button><button data-tab="signup">회원가입</button></div>
+        <input id="login-nick-in" placeholder="닉네임 (2~12자)" maxlength="12" autocomplete="username" spellcheck="false" />
+        <input id="login-pw" type="password" placeholder="비밀번호 (6자 이상)" autocomplete="current-password" />
+        <input id="login-pw2" type="password" placeholder="비밀번호 확인" class="hidden" autocomplete="new-password" />
+        <div id="login-err" class="login-err"></div>
+        <button id="login-go" class="btn primary">로그인</button>
+        <button id="login-guest" class="btn ghost">게스트로 시작</button>
+        <div class="login-hint">계정으로 로그인하면 코인·캐릭터·무기가 저장되어 다른 기기에서도 그대로 이어서 할 수 있어요.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= HUD ================= -->
+  <div id="room" class="hidden">
+    <div class="room-top">
+      <div class="room-label">방 코드</div>
+      <div id="room-code" class="room-code">-----</div>
+      <button id="room-copy" class="btn ghost small">복사</button>
+    </div>
+    <div id="room-status" class="room-status"></div>
+    <div class="room-bottom">
+      <div id="room-modes" class="room-modes">
+        <button data-mode="duel"><b>듀얼</b><small>1대1 · 방 안의 친구와 대결</small></button>
+        <button data-mode="duo"><b>듀오</b><small>2대2 · 사람끼리 매칭</small></button>
+      </div>
+      <div class="room-actions">
+        <button id="room-leave" class="btn ghost">나가기</button>
+        <button id="room-start" class="btn primary">시작</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="hud" class="hidden">
+    <div id="vignette"></div>
+    <div id="tint"></div>
+    <div id="speedlines"></div>
+    <div id="scope" class="hidden"><div class="scope-hole"></div><div class="scope-h"></div><div class="scope-v"></div></div>
+
+    <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="dot"></i></div>
+    <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+
+    <div id="topcenter"><div id="mode-label"></div><div id="score-label"></div></div>
+    <div id="killfeed"></div>
+    <div id="center-msg"></div>
+    <div id="dmg-layer"></div>
+
+    <div id="hud-health">
+      <div id="hud-char"></div>
+      <div class="hp-row"><span id="hp-num">100</span><div class="hp-bar"><div id="hp-fill"></div></div></div>
+    </div>
+
+    <div id="hud-skills">
+      <div class="skill" id="skill-q"><div class="cd"></div><div class="sk-key">Q</div><div class="sk-name"></div><div class="sk-time"></div><div class="sk-bar"><i></i></div><div class="sk-badge"></div></div>
+      <div class="skill" id="skill-e"><div class="cd"></div><div class="sk-key">E</div><div class="sk-name"></div><div class="sk-time"></div><div class="sk-bar"><i></i></div><div class="sk-badge"></div></div>
+    </div>
+
+    <div id="hud-ammo">
+      <div id="hud-wname"></div>
+      <div class="ammo"><span id="ammo-mag">0</span><span class="sep">/</span><span id="ammo-res">0</span></div>
+      <div id="slots"></div>
+    </div>
+
+    <div id="scoreboard" class="hidden"></div>
+
+      <div id="steam-overlay"></div>
+  <div id="glitch-overlay" class="hidden"><div class="gl-text">SIGNAL LOST</div></div>
+  <div id="death" class="hidden">
+      <div class="death-title">처치당했습니다</div>
+      <div id="death-by"></div>
+      <div id="death-timer"></div>
+    </div>
+  </div>
+
+  <!-- Pause -->
+  <div id="pause" class="overlay hidden">
+    <div class="ov-card">
+      <h2>일시정지</h2>
+      <button id="pause-resume" class="btn primary">계속하기</button>
+      <label class="ov-sens">마우스 감도 <b id="pause-sens-v"></b><input id="pause-sens" type="range" min="0.2" max="3" step="0.05" /></label>
+      <button id="pause-exit" class="btn ghost">메뉴로 나가기</button>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div id="result" class="overlay hidden">
+    <div class="ov-card">
+      <h2 id="result-title">승리!</h2>
+      <div id="result-body"></div>
+      <div class="ov-row">
+        <button id="result-again" class="btn primary">다시하기</button>
+        <button id="result-exit" class="btn ghost">메뉴로</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
