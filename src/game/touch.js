@@ -175,11 +175,16 @@ export class TouchControls {
     if (enemies.length) {
       const hit = _ray.intersectObjects(g.world.solids.concat(enemies), false)[0];
       const e = hit?.object.userData.enemy;
-      on = !!e && e.alive !== false && !e.invisible;
+      on = !!e && e.alive !== false && !e.invisible && hit.distance < 40; // AUTO only reaches 40 m
     }
-    if (on && !this._autoOn) { w.trigger = true; w.triggerUsed = false; }
+    // reaction delay: the enemy has to stay under the crosshair for 0.25 s before AUTO fires
+    const now = performance.now();
+    if (!on) this._autoSeen = 0;
+    else if (!this._autoSeen) this._autoSeen = now;
+    if (on && now - this._autoSeen < 250) on = false;
+    if (on && !this._autoOn) { w.trigger = true; w.triggerUsed = false; this._autoTap = now; }
     else if (!on && this._autoOn) w.trigger = false;
-    else if (on && !w.def.auto && w.triggerUsed && w.slot.mag > 0) w.triggerUsed = false; // semi-auto: keep tapping
+    else if (on && !w.def.auto && w.triggerUsed && w.slot.mag > 0 && now - (this._autoTap || 0) > 300) { w.triggerUsed = false; this._autoTap = now; } // semi-auto: slower taps
     this._autoOn = on;
   }
 

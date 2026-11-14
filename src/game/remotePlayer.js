@@ -72,6 +72,7 @@ export class RemotePlayer {
     this.tag = nameTag(this.name, enemy ? '#ff6b6b' : '#7fd0ff');
     this.tag.position.y = 2.25;
     this.model.group.add(this.tag);
+    this.tag.visible = !enemy; // no name over enemies in combat
     this.model.group.visible = false;
     game.scene.add(this.model.group);
     // Inferno barrier seen from outside
@@ -205,7 +206,7 @@ export class RemotePlayer {
     if (op !== this._op) {
       this._op = op;
       for (const m of this._mats) { m.transparent = op < 1; m.opacity = op; m.needsUpdate = true; }
-      this.tag.visible = op === 1;
+      this.tag.visible = op === 1 && !this.enemy;
     }
     if (this.flashT > 0) {
       this.flashT -= dt;

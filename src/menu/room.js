@@ -1,4 +1,4 @@
-import { RoomClient, friendlyError, TEAM_SIZE, MODE_NAMES, ROOM_SLOTS } from '../net/room.js';
+import { RoomClient, friendlyError, TEAM_SIZE, MODE_NAMES, ROOM_SLOTS, NET_VER } from '../net/room.js';
 import { getCharacter } from '../data/characters.js';
 import { CharStage } from './stage.js';
 import { save } from '../save.js';
@@ -84,7 +84,11 @@ export class RoomUI {
     if (!r.isHost) return;
     try {
       if (r.meta.state === 'queue') await r.cancelQueue();
-      else await r.play();
+      else {
+        const old = Object.values(r.players).find((p) => p.v !== NET_VER);
+        if (old) { this.ui.toast(`${old.name}님의 게임이 예전 버전입니다 — 새로고침(Ctrl+F5)해 달라고 하세요`); return; }
+        await r.play();
+      }
     } catch (e) { this.ui.toast(friendlyError(e)); }
   }
 
@@ -134,7 +138,7 @@ export class RoomUI {
     for (const s of slots) {
       const c = getCharacter(s.char);
       html.push(`<div class="room-slot t${s.team}"><span class="team">${teamLabel(s.team)}</span>
-        <span class="nm">${s.name}${s.id === r.uid ? ' (나)' : ''}<small>${s.bot ? 'AI · ' : ''}${c.name}</small></span>
+        <span class="nm">${s.name}${s.id === r.uid ? ' (나)' : ''}<small>${s.bot ? 'AI · ' : ''}${c.name}${!s.bot && s.v !== NET_VER ? ' · <b style="color:#ff6b6b">예전 버전</b>' : ''}</small></span>
         ${host && teamMode ? `<button data-act="swap" data-id="${s.id}" title="팀 바꾸기">⇄</button>` : ''}
         ${host && s.bot ? `<button class="del" data-act="del" data-id="${s.id}" title="AI 빼기">✕</button>` : ''}</div>`);
     }

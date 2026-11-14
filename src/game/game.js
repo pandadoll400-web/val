@@ -525,15 +525,21 @@ export class Game {
     if (this.frozen) return;
     // last team standing wins the round (judge decides, after a short grace for network lag)
     const alive = {};
-    if (this.player.alive || this.skills.reviving) alive[this.myTeam] = 1;
-    for (const r of Object.values(this.remotes)) if (!r.gone && (r.alive || r.reviving)) alive[r.team] = 1;
+    let humans = 0;
+    if (this.player.alive || this.skills.reviving) { alive[this.myTeam] = 1; humans++; }
+    for (const [u, r] of Object.entries(this.remotes)) if (!r.gone && (r.alive || r.reviving)) { alive[r.team] = 1; if (!this.net.players[u]?.bot) humans++; }
     for (const b of this.bots) if (b.alive) alive[b.team] = 1;
     const standing = Object.keys(alive);
-    if (standing.length <= 1) {
+    // no person left alive (only AI) → no waiting: decide right away by the health left
+    const allDown = humans === 0 && standing.length > 1;
+    const me = this.player.alive || this.skills.reviving;
+    if (!me && !this.dom) $('death-timer').textContent = humans > 0 ? '살아남은 사람이 싸우는 중 — 라운드가 끝나면 모두 다시 시작합니다' : '곧 다음 판이 시작됩니다';
+    if (standing.length <= 1 || allDown) {
       this._standT = (this._standT || 0) + dt;
       if (this._standT > 0.6 && this._decided !== this.roundN && this.isJudge) {
         this._decided = this.roundN;
-        this.net.winRound(standing[0] || null, { reason: standing.length ? 'survive' : 'draw' });
+        if (allDown) { const win = this.hpWinner(); this.net.winRound(win, { reason: win ? 'down' : 'draw' }); }
+        else this.net.winRound(standing[0] || null, { reason: standing.length ? 'survive' : 'draw' });
       }
       return;
     }
@@ -544,15 +550,20 @@ export class Game {
       // the person with the smallest id decides (everyone sees the same health numbers)
       if (!this.isJudge) return;
       this._decided = this.roundN;
-      const hp = {};
-      const add = (team, v) => { hp[team] = (hp[team] || 0) + Math.max(0, v); };
-      add(this.myTeam, this.player.alive ? this.player.hp : 0);
-      for (const r of Object.values(this.remotes)) if (!r.gone) add(r.team, r.alive ? r.hp : 0);
-      for (const b of this.bots) add(b.team, b.alive ? b.hp : 0);
-      const sorted = Object.entries(hp).sort((a, b) => b[1] - a[1]);
-      const win = sorted.length > 1 && sorted[0][1] > sorted[1][1] ? sorted[0][0] : null;
+      const win = this.hpWinner();
       this.net.winRound(win, { reason: win ? 'hp' : 'draw' });
     }
+  }
+
+  /** team with the most health left among the living (null = tie) */
+  hpWinner() {
+    const hp = {};
+    const add = (team, v) => { hp[team] = (hp[team] || 0) + Math.max(0, v); };
+    add(this.myTeam, this.player.alive ? this.player.hp : 0);
+    for (const r of Object.values(this.remotes)) if (!r.gone) add(r.team, r.alive ? r.hp : 0);
+    for (const b of this.bots) add(b.team, b.alive ? b.hp : 0);
+    const sorted = Object.entries(hp).sort((a, b) => b[1] - a[1]);
+    return sorted.length > 1 && sorted[0][1] > sorted[1][1] ? sorted[0][0] : null;
   }
 
   /** a new round from the network: freeze, then everybody back to the start positions */
@@ -566,7 +577,8 @@ export class Game {
     const L = r.last || {};
     const mine = L.team && L.team === this.myTeam;
     const txt = L.reason === 'survive' ? (mine ? '우리 팀이 끝까지 살아남았습니다' : '상대가 끝까지 살아남았습니다')
-      : L.reason === 'hp' ? '시간 종료 — 체력이 더 많은 쪽이 승리' : L.reason === 'draw' && !L.team ? '무승부 (점수 없음)' : '시간 종료 — 무승부 (점수 없음)';
+      : L.reason === 'down' ? '모두 쓰러짐 — 남은 체력으로 판정'
+      : L.reason === 'hp' ?'시간 종료 — 체력이 더 많은 쪽이 승리' : L.reason === 'draw' && !L.team ? '무승부 (점수 없음)' : '시간 종료 — 무승부 (점수 없음)';
     if (!r.over) this.hud.msg(`${L.team ? (mine ? '라운드 승리!' : '라운드 패배') : '무승부'} · ${txt}`, 2.2);
     this.weapons.trigger = false;
     this.resetAt = this.time + 1.3;

@@ -20,6 +20,9 @@ export const MODE_NAMES = { duel: '듀얼 1대1', ffa: '개인전 1대1대1', te
 export const CAPTURE_TIME = 20, DOM_TIME = 360;
 export const ROUND_TIME = 90, OVERTIME = 30; // seconds
 const MAX_ROOM = 4;
+/** online version: everyone in a room must run the same build of the maps / rules (bump when they change) */
+export const NET_VER = 6;
+const OLD_VER = '게임 버전이 다릅니다 — 둘 다 새로고침(Ctrl+F5)해서 최신 버전으로 맞춘 뒤 다시 들어오세요';
 const BOT_NAMES = ['AI 블리자드', 'AI 툰드라', 'AI 글래셔', 'AI 폴라리스', 'AI 아발란체', 'AI 서리발톱', 'AI 눈보라', 'AI 북풍'];
 
 /** the slot list of a room: people (by join time) then AI bots, each with a team */
@@ -42,7 +45,7 @@ export function roomSlots(players, bots, mode, teams = {}) {
 export function myProfile() {
   const skins = {};
   for (const id of Object.values(save.loadout)) if (save.skins?.[id] && save.ownedSkins.includes(save.skins[id])) skins[id] = save.skins[id];
-  return { name: save.name, char: save.character, loadout: { ...save.loadout }, skins, joined: Date.now() };
+  return { name: save.name, char: save.character, loadout: { ...save.loadout }, skins, joined: Date.now(), v: NET_VER };
 }
 
 export function friendlyError(e) {
@@ -82,7 +85,7 @@ export class RoomClient {
       const code = randomCode();
       const res = await runTransaction(ref(getDb(), `rooms/${code}/meta`), (cur) => {
         if (cur) return undefined; // taken → abort
-        return { host: this.uid, mode: 'duel', state: 'lobby', created: Date.now() };
+        return { host: this.uid, mode: 'duel', state: 'lobby', created: Date.now(), v: NET_VER };
       }, { applyLocally: false });
       if (!res.committed) continue;
       this.code = code;
@@ -98,6 +101,7 @@ export class RoomClient {
     if (!/^[A-Z0-9]{5}$/.test(code)) throw fail('방 코드는 5글자입니다');
     const meta = (await get(ref(getDb(), `rooms/${code}/meta`))).val();
     if (!meta) throw fail('방을 찾을 수 없습니다 — 코드를 확인하세요');
+    if (meta.v !== NET_VER) throw fail(OLD_VER);
     if (meta.state !== 'lobby') throw fail('이미 게임 중이거나 매칭 중인 방입니다');
     let full = false;
     const res = await runTransaction(ref(getDb(), `rooms/${code}/players`), (cur) => {
@@ -197,7 +201,7 @@ export class RoomClient {
 
   async enqueue(mode) {
     const entry = { code: this.code, host: this.uid, size: this.size, members: { ...this.players }, ts: serverTimestamp() };
-    const qref = ref(getDb(), `mm/${mode}/${this.code}`);
+    const qref = ref(getDb(), `mm/${mode}_v${NET_VER}/${this.code}`);
     await set(qref, entry);
     await onDisconnect(qref).remove();
     await update(this.r('meta'), { state: 'queue', queuedAt: serverNow() });
@@ -209,7 +213,7 @@ export class RoomClient {
     const mode = this.meta?.mode;
     this.mm?.stop();
     this.mm = null;
-    if (mode) await remove(ref(getDb(), `mm/${mode}/${this.code}`)).catch(() => {});
+    if (mode) await remove(ref(getDb(), `mm/${mode}_v${NET_VER}/${this.code}`)).catch(() => {});
     if (this.meta?.state === 'queue') await update(this.r('meta'), { state: 'lobby' }).catch(() => {});
   }
 
@@ -266,7 +270,7 @@ export async function createMatch(mode, parties, teams, bots = {}) {
   const score = {};
   for (const p of Object.values(players)) score[p.team] = 0;
   await set(mref, {
-    meta: { mode, map, state: 'playing', startAt, created: Date.now(), target: WIN_KILLS[mode], roundTime: ROUND_TIME, overtime: OVERTIME },
+    meta: { v: NET_VER, mode, map, state: 'playing', startAt, created: Date.now(), target: WIN_KILLS[mode], roundTime: ROUND_TIME, overtime: OVERTIME },
     round: { n: 0, startAt, score },
     players,
   });
@@ -283,7 +287,7 @@ class Matchmaker {
   constructor(mode, room) {
     this.mode = mode;
     this.room = room;
-    this.qref = ref(getDb(), `mm/${mode}`);
+    this.qref = ref(getDb(), `mm/${mode}_v${NET_VER}`); // only parties on the same version are matched
     this.busy = false;
   }
 
