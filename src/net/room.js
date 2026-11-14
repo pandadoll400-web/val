@@ -4,7 +4,7 @@ import {
 } from './firebase.js';
 import { save } from '../save.js';
 import { CHARACTERS } from '../data/characters.js';
-import { randomMap } from '../world/themes.js';
+import { randomMap, THEME_ORDER } from '../world/themes.js';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no O/0/I/1
 const randomCode = () => Array.from({ length: 5 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
@@ -151,6 +151,12 @@ export class RoomClient {
     await update(this.r('meta'), { mode, bots: Object.keys(bots).length ? bots : null });
   }
 
+  /** host: pick the map ('' = random) */
+  async setMap(map) {
+    if (!this.isHost || this.meta?.state !== 'lobby') return;
+    await update(this.r('meta'), { map: THEME_ORDER.includes(map) ? map : null });
+  }
+
   /** host: put an AI player into an empty slot */
   async addBot(team) {
     if (!this.isHost || this.meta?.state !== 'lobby') return;
@@ -196,7 +202,7 @@ export class RoomClient {
       if (s.bot) bots[s.id] = { name: s.name, char: s.char, loadout: { primary: 'rifle', secondary: 'pistol', sidearm: 'knife' }, skins: {}, bot: true, owner: this.uid };
       else members[s.id] = this.players[s.id];
     }
-    await createMatch(mode, [{ code: this.code, members }], teams, bots);
+    await createMatch(mode, [{ code: this.code, members }], teams, bots, this.meta.map);
   }
 
   async enqueue(mode) {
@@ -254,7 +260,7 @@ export class RoomClient {
 }
 
 /** Write matches/{id} and send every party into it (rooms/{code}/meta.state = playing). */
-export async function createMatch(mode, parties, teams, bots = {}) {
+export async function createMatch(mode, parties, teams, bots = {}, pickMap = '') {
   const mref = push(ref(getDb(), 'matches'));
   const players = {};
   const slot = { A: 0, B: 0, C: 0, D: 0 };
@@ -266,7 +272,8 @@ export async function createMatch(mode, parties, teams, bots = {}) {
   }
   for (const [id, b] of Object.entries(bots)) players[id] = { ...b, team: teams[id], slot: slot[teams[id]]++, party: parties[0]?.code || '' };
   const startAt = serverNow() + 4000;
-  const map = mode === 'dom' ? 'camp' : randomMap(); // domination is always at the campsite; otherwise a random map
+  // domination is always at the campsite; otherwise the host's pick, or a random map
+  const map = mode === 'dom' ? 'camp' : THEME_ORDER.includes(pickMap) ? pickMap : randomMap();
   const score = {};
   for (const p of Object.values(players)) score[p.team] = 0;
   await set(mref, {

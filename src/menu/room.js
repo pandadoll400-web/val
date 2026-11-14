@@ -1,3 +1,4 @@
+import { THEME_ORDER, getTheme } from '../world/themes.js';
 import { RoomClient, friendlyError, TEAM_SIZE, MODE_NAMES, ROOM_SLOTS, NET_VER } from '../net/room.js';
 import { getCharacter } from '../data/characters.js';
 import { CharStage } from './stage.js';
@@ -36,6 +37,11 @@ export class RoomUI {
     $('room-start').onclick = () => this.startPressed();
     document.querySelectorAll('#room-modes button').forEach((b) => {
       b.onclick = () => this.room.setMode(b.dataset.mode).catch((e) => this.ui.toast(friendlyError(e)));
+    });
+    // map picker: random + every map
+    $('room-maps').innerHTML = '<span class="lbl">맵</span><button data-map="">🎲 랜덤</button>' + THEME_ORDER.map((id) => `<button data-map="${id}">${getTheme(id).name}</button>`).join('');
+    $('room-maps').querySelectorAll('button').forEach((b) => {
+      b.onclick = () => this.room.setMap(b.dataset.map).catch((e) => this.ui.toast(friendlyError(e)));
     });
   }
 
@@ -117,6 +123,12 @@ export class RoomUI {
     document.querySelectorAll('#room-modes button').forEach((b) => {
       b.classList.toggle('on', b.dataset.mode === m.mode);
       b.disabled = !r.isHost || m.state !== 'lobby';
+    });
+    const dom = m.mode === 'dom', duo = m.mode === 'duo';
+    $('room-maps').classList.toggle('locked', dom || duo);
+    $('room-maps').querySelectorAll('button').forEach((b) => {
+      b.classList.toggle('on', dom ? b.dataset.map === 'camp' : duo ? b.dataset.map === '' : b.dataset.map === (m.map || ''));
+      b.disabled = !r.isHost || m.state !== 'lobby' || dom || duo;
     });
     const start = $('room-start');
     const queued = m.state === 'queue';

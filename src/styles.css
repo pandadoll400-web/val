@@ -621,3 +621,12 @@ body.touch-mode #crosshair { transform: translate(-50%, -50%) scale(.9); }
 .ccard.infinity .csub { background: linear-gradient(90deg, #3dfff0, #ff3df2, #ffd36b); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 900; }
 @keyframes infBorder { to { background-position: 0 0, 300% 0; } }
 #result .ov-card:has(table.kda) { width: min(600px, 94vw); }
+
+/* room map picker */
+.room-maps { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; width: 100%; }
+.room-maps .lbl { font-weight: 900; font-size: 13px; color: rgba(255,255,255,.7); margin-right: 4px; }
+.room-maps button { padding: 6px 11px; border-radius: 999px; border: 2px solid rgba(255,255,255,.2); background: rgba(8,14,28,.66); color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; }
+.room-maps button.on { border-color: #ffa548; background: rgba(255,140,80,.35); }
+.room-maps button:disabled { cursor: default; opacity: .75; }
+.room-maps button:disabled:not(.on) { opacity: .45; }
+.room-maps.locked::after { content: '이 모드는 맵이 정해져 있습니다'; font-size: 11.5px; color: rgba(255,255,255,.55); margin-left: 4px; }
