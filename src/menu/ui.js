@@ -99,7 +99,7 @@ export class MenuUI {
     const wn = (id) => `<b style="color:${RARITY[WEAPONS[id].rarity].color}">${WEAPONS[id].name}</b>`;
     $('loadout-chip').innerHTML = `캐릭터 <b>${c.name}</b> <span style="color:${RARITY[c.rarity].color}">(${RARITY[c.rarity].name})</span>
       · 무기 ${wn(lo.primary)} / ${wn(lo.secondary)} / ${wn(lo.sidearm)}
-      <div class="ver">v1.2 · 빌드 ${__BUILD__}</div>`;
+      <div class="ver">v1.3 · 빌드 ${__BUILD__}</div>`;
   }
 
   /* ---------- characters ---------- */
@@ -540,7 +540,7 @@ const KIND_ICON = { gun: '✦', melee: '⚔', bow: '➶', grenade: '●' };
 /* ---- character face portraits for the character cards (rendered once, cached) ---- */
 const portraitCache = {};
 let portraitR = null;
-function getPortrait(c) {
+export function getPortrait(c) {
   if (portraitCache[c.id] !== undefined) return portraitCache[c.id];
   try {
     const S = 128;

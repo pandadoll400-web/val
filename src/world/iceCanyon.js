@@ -4,6 +4,7 @@ import {
   FOG_COLOR, makeSky, makeEnvironment, createCliffGeometry, updateCliff, cliffMaterial,
   makeCrystalCluster, makeIceRock, makeSnow,
 } from './canyonParts.js';
+import { getTheme, makeTree, makeMushroom, makeBush, makeFlowers, makeHive, makeHiveBox, honeycombTexture } from './themes.js';
 
 const HALF_W = 34;   // playable half-width (x)
 const HALF_L = 84;   // playable half-length (z)
@@ -21,26 +22,36 @@ const rockMat = new THREE.MeshStandardMaterial({ color: '#d4ebf8', roughness: 0.
  * layout: 'range' (training) — 'arena' arrives in a later stage.
  */
 export class IceCanyonWorld {
-  constructor(scene, renderer, layout = 'arena') {
+  constructor(scene, renderer, layout = 'arena', themeId = 'ice') {
     this.scene = scene;
     this.layout = layout;
+    const T = this.theme = getTheme(themeId);
+    // materials of this map
+    const b = T.block;
+    this.mats = {
+      block: themeId === 'ice' ? iceBlockMat : new THREE.MeshStandardMaterial({ color: b.color, emissive: b.emissive, emissiveIntensity: b.emissiveIntensity, roughness: b.roughness,
+        transparent: b.opacity < 1, opacity: b.opacity, flatShading: !b.honeycomb, map: b.honeycomb ? honeycombTexture() : null }),
+      rock: themeId === 'ice' ? rockMat : new THREE.MeshStandardMaterial({ color: T.rock, roughness: 0.85, flatShading: true }),
+      crate: themeId === 'ice' ? crateMat : new THREE.MeshStandardMaterial({ color: T.crate[0], roughness: 0.8 }),
+      crateEdge: themeId === 'ice' ? crateEdgeMat : new THREE.MeshStandardMaterial({ color: T.crate[1], roughness: 0.8 }),
+    };
     this.colliders = [];
     this.solids = [];
     this.cover = [];   // meshes that block line of sight (no floor/cliffs)
     this.spawns = [];
-    this.crateMat = crateMat;
+    this.crateMat = this.mats.crate;
     this.rng = mulberry32(2024);
     this.time = 0;
 
-    scene.fog = new THREE.Fog(FOG_COLOR, 70, 380);
-    this.sky = makeSky();
+    scene.fog = new THREE.Fog(T.fog, T.fogNear, T.fogFar);
+    this.sky = makeSky(T);
     scene.add(this.sky);
-    scene.environment = makeEnvironment(renderer);
+    scene.environment = makeEnvironment(renderer, T);
     scene.environmentIntensity = 0.7;
     this.envMap = scene.environment;
 
-    scene.add(new THREE.HemisphereLight('#cfe6ff', '#34496b', 1.15));
-    const sun = new THREE.DirectionalLight('#ffd9bd', 2.6);
+    scene.add(new THREE.HemisphereLight(T.hemi[0], T.hemi[1], T.hemi[2]));
+    const sun = new THREE.DirectionalLight(T.sun[0], T.sun[1]);
     sun.position.set(40, 70, -90);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -55,16 +66,34 @@ export class IceCanyonWorld {
     if (layout === 'range') this.buildRange();
     else this.buildArena();
 
-    this.snow = makeSnow(2200, 50);
+    this.snow = makeSnow(T.particles.count, 50, T.particles);
     scene.add(this.snow);
+    if (themeId !== 'ice') this.decorate();
+  }
+
+  /** small decorative props on the open floor (no collision) */
+  decorate() {
+    const rng = mulberry32(777), T = this.theme;
+    let placed = 0, guard = 0;
+    while (placed < 46 && guard++ < 900) {
+      const x = (rng() - 0.5) * (HALF_W * 2 - 4), z = (rng() - 0.5) * (HALF_L * 2 - 6);
+      if (this.colliders.some((b) => b.max.y < 90 && x > b.min.x - 1.2 && x < b.max.x + 1.2 && z > b.min.z - 1.2 && z < b.max.z + 1.2)) continue;
+      const r = rng();
+      const o = T.prop === 'tree' ? (r < 0.5 ? makeMushroom(rng, 0.8 + rng() * 0.8) : makeBush(rng, 0.6 + rng() * 0.5)) : makeFlowers(rng, 0.8 + rng() * 0.6);
+      o.position.set(x, 0, z);
+      o.rotation.y = rng() * 6;
+      this.scene.add(o);
+      placed++;
+    }
   }
 
   /* ---------- static geometry ---------- */
   buildCanyon() {
     const mat = cliffMaterial();
+    mat.roughness = this.theme.cliffRough;
     const mk = (opts) => {
       const geo = createCliffGeometry(70, 26);
-      updateCliff(geo, opts);
+      updateCliff(geo, { ...opts, colors: this.theme.id === 'ice' ? null : this.theme.cliff });
       const m = new THREE.Mesh(geo, mat);
       m.receiveShadow = true;
       return m;
@@ -86,11 +115,11 @@ export class IceCanyonWorld {
     this.addCollider(new THREE.Box3(new THREE.Vector3(-B, -10, -B), new THREE.Vector3(B, 100, -HALF_L)));
     this.addCollider(new THREE.Box3(new THREE.Vector3(-B, -10, HALF_L), new THREE.Vector3(B, 100, B)));
 
-    // crystals hugging the walls
-    const rng = this.rng;
+    // props hugging the walls (crystals / trees / hives & flowers)
+    const rng = this.rng, P = this.theme.prop;
     for (let i = 0; i < 26; i++) {
       const side = i % 2 ? 1 : -1;
-      const cl = makeCrystalCluster(rng, 1 + rng() * 1.6);
+      const cl = P === 'tree' ? makeTree(rng, 1.3 + rng() * 0.9) : P === 'flower' ? (i % 3 ? makeFlowers(rng, 1.4) : makeHiveBox(rng, 1.3)) : makeCrystalCluster(rng, 1 + rng() * 1.6);
       cl.position.set(side * (HALF_W - 0.5 + rng() * 1.5), 0, -HALF_L + rng() * HALF_L * 2);
       this.scene.add(cl);
     }
@@ -101,7 +130,7 @@ export class IceCanyonWorld {
     geo.rotateX(-Math.PI / 2);
     const p = geo.attributes.position;
     const col = new Float32Array(p.count * 3);
-    const snow = new THREE.Color('#eef5fc'), ice = new THREE.Color('#9fcbe6'), tmp = new THREE.Color();
+    const snow = new THREE.Color(this.theme.floor[1]), ice = new THREE.Color(this.theme.floor[0]), tmp = new THREE.Color();
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), z = p.getZ(i);
       const n = fbm(x * 0.05, z * 0.05, 5, 4);
@@ -111,7 +140,7 @@ export class IceCanyonWorld {
     }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     geo.computeVertexNormals();
-    const floor = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.02 }));
+    const floor = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: this.theme.id === 'ice' ? 0.55 : 0.95, metalness: 0.02 }));
     floor.receiveShadow = true;
     this.scene.add(floor);
     this.solids.push(floor);
@@ -123,9 +152,10 @@ export class IceCanyonWorld {
     this.spawns.push({ pos: new THREE.Vector3(0, 0, PLAYER_Z + 4), yaw: 0 });
 
     // shooting booth counter (gaps at the sides let you walk out)
-    this.addBlock(0, 0, PLAYER_Z - 4, 22, 1.05, 0.6, iceBlockMat);
-    this.addBlock(-11.6, 0, PLAYER_Z - 1.5, 0.6, 2.4, 5.6, iceBlockMat);
-    this.addBlock(11.6, 0, PLAYER_Z - 1.5, 0.6, 2.4, 5.6, iceBlockMat);
+    const iceBlock = this.mats.block;
+    this.addBlock(0, 0, PLAYER_Z - 4, 22, 1.05, 0.6, iceBlock);
+    this.addBlock(-11.6, 0, PLAYER_Z - 1.5, 0.6, 2.4, 5.6, iceBlock);
+    this.addBlock(11.6, 0, PLAYER_Z - 1.5, 0.6, 2.4, 5.6, iceBlock);
 
     // distance rows
     this.targetSpots = [];
@@ -162,9 +192,9 @@ export class IceCanyonWorld {
     this.addCrate(-24, 0, 10, 2);
     this.addCrate(24, 0, -20, 2);
     this.addCrate(-22, 0, -40, 2.4);
-    this.addBlock(-18, 0, 20, 6, 1.3, 0.8, iceBlockMat);
-    this.addBlock(19, 0, 5, 0.8, 1.3, 6, iceBlockMat);
-    this.addBlock(0, 0, -30, 8, 1.6, 0.8, iceBlockMat);
+    this.addBlock(-18, 0, 20, 6, 1.3, 0.8, iceBlock);
+    this.addBlock(19, 0, 5, 0.8, 1.3, 6, iceBlock);
+    this.addBlock(0, 0, -30, 8, 1.6, 0.8, iceBlock);
     this.addRock(-26, 0, 34, 3.5, 3, 3.5);
     this.addRock(27, 0, -2, 3, 4, 4);
     this.addRock(24, 0, 58, 2.6, 2.4, 2.6);
@@ -173,15 +203,15 @@ export class IceCanyonWorld {
     this.addRock(-12, 0, -62, 4, 5, 4);
 
     // ice staircase + lookout platform (step height 0.45)
-    for (let i = 0; i < 5; i++) this.addBlock(27, 0, 46 - i * 1.0, 4, 0.45 * (i + 1), 1.0, iceBlockMat);
-    this.addBlock(27, 0, 39.5, 6, 2.25, 4, iceBlockMat);
+    for (let i = 0; i < 5; i++) this.addBlock(27, 0, 46 - i * 1.0, 4, 0.45 * (i + 1), 1.0, iceBlock);
+    this.addBlock(27, 0, 39.5, 6, 2.25, 4, iceBlock);
 
     // ice pillars
     for (const [x, z] of [[-16, 0], [16, -40], [-6, -50], [20, 64]]) this.addPillar(x, z);
   }
 
   buildArena() {
-    const ice = iceBlockMat;
+    const ice = this.mats.block;
     this.spawns.push({ pos: new THREE.Vector3(0, 0, 76), yaw: 0 });
 
     // player start zone (z 60..84)
@@ -251,12 +281,24 @@ export class IceCanyonWorld {
 
   /* ---------- builders ---------- */
   addPillar(x, z) {
-    const pil = makeIceRock(this.rng, 1.2, 8 + this.rng() * 4, 1.2, rockMat);
+    this.addCollider(new THREE.Box3(new THREE.Vector3(x - 0.9, 0, z - 0.9), new THREE.Vector3(x + 0.9, 12, z + 0.9)));
+    const kind = this.theme.pillar;
+    if (kind === 'tree' || kind === 'hive') {
+      // giant tree / honeycomb tower in the same footprint
+      const o = kind === 'tree' ? makeTree(this.rng, 2.2) : makeHive(this.rng, 1.05);
+      o.position.set(x, 0, z);
+      this.scene.add(o);
+      o.traverse((m) => { if (m.isMesh) { this.solids.push(m); this.cover.push(m); } });
+      const deco = kind === 'tree' ? makeMushroom(this.rng, 1.1) : makeFlowers(this.rng, 1.2);
+      deco.position.set(x + 1.4, 0, z + 0.8);
+      this.scene.add(deco);
+      return;
+    }
+    const pil = makeIceRock(this.rng, 1.2, 8 + this.rng() * 4, 1.2, this.mats.rock);
     pil.position.set(x, 0, z);
     this.scene.add(pil);
     this.solids.push(pil);
     this.cover.push(pil);
-    this.addCollider(new THREE.Box3(new THREE.Vector3(x - 0.9, 0, z - 0.9), new THREE.Vector3(x + 0.9, 12, z + 0.9)));
     const cl = makeCrystalCluster(this.rng, 1.2);
     cl.position.set(x + 1.2, 0, z + 0.6);
     this.scene.add(cl);
@@ -275,17 +317,17 @@ export class IceCanyonWorld {
   }
 
   addCrate(x, y, z, s) {
-    const g = this.addBlock(x, y, z, s, s, s, crateMat);
+    const g = this.addBlock(x, y, z, s, s, s, this.mats.crate);
     const t = s * 0.1, e = s * 1.02, hs = s / 2;
     // dark frame: 4 vertical posts + top/bottom rims
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(t, e, t), crateEdgeMat);
+      const post = new THREE.Mesh(new THREE.BoxGeometry(t, e, t), this.mats.crateEdge);
       post.position.set(sx * hs, 0, sz * hs);
       g.add(post);
     }
     for (const sy of [-1, 1]) {
       for (const [w, d, px, pz] of [[e, t, 0, hs], [e, t, 0, -hs], [t, e, hs, 0], [t, e, -hs, 0]]) {
-        const rim = new THREE.Mesh(new THREE.BoxGeometry(w, t, d), crateEdgeMat);
+        const rim = new THREE.Mesh(new THREE.BoxGeometry(w, t, d), this.mats.crateEdge);
         rim.position.set(px, sy * hs, pz);
         g.add(rim);
       }
@@ -294,7 +336,7 @@ export class IceCanyonWorld {
   }
 
   addRock(x, y, z, sx, sy, sz) {
-    const r = makeIceRock(this.rng, sx / 2, sy, sz / 2, rockMat);
+    const r = makeIceRock(this.rng, sx / 2, sy, sz / 2, this.mats.rock);
     r.position.set(x, y, z);
     this.scene.add(r);
     this.solids.push(r);

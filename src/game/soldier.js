@@ -144,6 +144,88 @@ export function makeSoldier(color = '#4f7fa8', accent = '#9be8ff', style = 'enem
     add(torso, box(0.06, 0.3, 0.02), glow, 0, 0.45, -0.215, 'body', 0, 0, 0.4); // bolt emblem
     add(torso, box(0.3, 0.35, 0.14), metal, 0, 0.42, 0.22);                 // battery pack
     add(torso, box(0.2, 0.05, 0.02), glow, 0, 0.5, 0.295);
+  } else if (style === 'nitro') {
+    // racing helmet with a wide visor + jet booster on the back
+    hadd(new THREE.SphereGeometry(0.2, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), body, 0, 0.17, 0.01);
+    hadd(box(0.3, 0.08, 0.04), glow, 0, 0.16, -0.16);                       // visor
+    hadd(box(0.05, 0.22, 0.36), accentMat, 0, 0.27, 0.01);                  // racing stripe
+    hadd(box(0.2, 0.06, 0.03), dark, 0, 0.05, -0.15);                       // chin guard
+    add(torso, box(0.34, 0.36, 0.16), metal, 0, 0.42, 0.24);                // booster pack
+    for (const s of [-1, 1]) {
+      add(torso, cyl(0.06, 0.08, 0.26, 10), dark, s * 0.11, 0.24, 0.27);    // nozzles
+      add(torso, cyl(0.05, 0.0, 0.18, 8), glow, s * 0.11, 0.06, 0.27, 'body', Math.PI);   // flames
+    }
+    for (const s of [-1, 1]) add(s < 0 ? L.sh : R.sh, box(0.05, 0.05, 0.2), accentMat, 0, 0.09, 0); // shoulder flame stripes
+  } else if (style === 'ghost') {
+    // pale hooded cloak, blank mask with hollow eyes, wisps
+    hadd(box(0.38, 0.4, 0.38), body, 0, 0.17, 0.03);                        // deep hood
+    hadd(box(0.26, 0.28, 0.03), plate, 0, 0.12, -0.16);                     // white mask
+    hadd(box(0.06, 0.07, 0.01), dark, -0.06, 0.16, -0.177);                 // hollow eyes
+    hadd(box(0.06, 0.07, 0.01), dark, 0.06, 0.16, -0.177);
+    hadd(box(0.04, 0.03, 0.01), glow, -0.06, 0.155, -0.18);
+    hadd(box(0.04, 0.03, 0.01), glow, 0.06, 0.155, -0.18);
+    add(torso, box(0.6, 0.85, 0.06), body, 0, 0.18, 0.2, 'body', 0.08);     // long cloak
+    for (const s of [-1, 1]) add(hips, box(0.24, 0.55, 0.04), body, s * 0.13, -0.3, -0.15, 'body', 0.06); // robe front
+    for (let i = 0; i < 3; i++) add(torso, new THREE.SphereGeometry(0.04, 8, 6), glow, (i - 1) * 0.22, 0.85 + (i % 2) * 0.1, 0.1); // wisps
+  } else if (style === 'echo') {
+    // big headphones, conductor coat, speaker on the back
+    helmet();
+    for (const s of [-1, 1]) {
+      hadd(cyl(0.09, 0.09, 0.07, 14), dark, s * 0.17, 0.16, 0, 0, 0, Math.PI / 2);
+      hadd(cyl(0.06, 0.06, 0.075, 14), glow, s * 0.19, 0.16, 0, 0, 0, Math.PI / 2);
+    }
+    hadd(new THREE.TorusGeometry(0.18, 0.02, 6, 18, Math.PI), accentMat, 0, 0.18, 0);   // headband
+    hadd(box(0.26, 0.06, 0.02), glow, 0, 0.15, -0.155);                     // visor
+    add(torso, cyl(0.15, 0.15, 0.1, 18), dark, 0, 0.42, 0.22, 'body', Math.PI / 2);     // speaker
+    add(torso, cyl(0.1, 0.1, 0.11, 18), glow, 0, 0.42, 0.23, 'body', Math.PI / 2);
+    for (const s of [-1, 1]) add(hips, box(0.2, 0.42, 0.04), accentMat, s * 0.12, -0.24, 0.15, 'body', -0.08); // tailcoat
+  } else if (style === 'glitch') {
+    // hacker hoodie with a pixel-grid visor and floating data cubes
+    hadd(box(0.36, 0.35, 0.36), body, 0, 0.17, 0.03);                       // hood
+    hadd(box(0.28, 0.12, 0.02), dark, 0, 0.15, -0.16);
+    for (let i = 0; i < 6; i++) hadd(box(0.03, 0.03, 0.01), glow, -0.1 + i * 0.04, 0.15 + (i % 2) * 0.03, -0.172); // pixel eyes
+    hadd(box(0.22, 0.1, 0.02), dark, 0, 0.05, -0.16);                       // face mask
+    for (const [x, y, z] of [[-0.42, 0.75, 0.05], [0.44, 0.82, -0.02], [0.38, 0.55, 0.18]])
+      add(torso, box(0.07, 0.07, 0.07), glow, x, y, z, 'body', 0.6, 0.7, 0);   // floating cubes
+    add(torso, box(0.06, 0.4, 0.06), accentMat, -0.12, 0.42, 0.18, 'body', 0, 0, 0.3); // cables
+    add(torso, box(0.06, 0.4, 0.06), accentMat, 0.12, 0.42, 0.18, 'body', 0, 0, -0.3);
+  } else if (style === 'inker') {
+    // beret, painter's apron with splats, giant brush on the back
+    hadd(box(0.26, 0.26, 0.27), skin, 0, 0.13, 0);
+    hadd(cyl(0.19, 0.2, 0.06, 16), body, 0.03, 0.3, 0.01, 0, 0, -0.18);      // beret
+    hadd(cyl(0.015, 0.015, 0.05, 6), dark, 0.03, 0.35, 0.01);
+    hadd(box(0.05, 0.02, 0.01), dark, -0.06, 0.15, -0.137);
+    hadd(box(0.05, 0.02, 0.01), dark, 0.06, 0.15, -0.137);
+    hadd(box(0.1, 0.03, 0.01), accentMat, 0.05, 0.1, -0.138);                // ink smudge
+    add(torso, box(0.42, 0.5, 0.03), plate, 0, 0.3, -0.19);                 // apron
+    for (const [x, y] of [[-0.1, 0.4], [0.08, 0.25], [0.12, 0.45]]) add(torso, box(0.08, 0.07, 0.01), accentMat, x, y, -0.207); // splats
+    add(torso, cyl(0.025, 0.025, 0.85, 8), metal, 0.05, 0.45, 0.22, 'body', 0, 0, 0.5);   // brush handle
+    add(torso, cyl(0.06, 0.02, 0.18, 10), accentMat, 0.27, 0.82, 0.22, 'body', 0, 0, 0.5); // brush tip
+  } else if (style === 'inferno') {
+    // horned crown, flaming shoulders (fire left / water right) and a long cape
+    helmet();
+    for (const s of [-1, 1]) hadd(cyl(0, 0.04, 0.2, 8), dark, s * 0.14, 0.38, 0, 0, 0, -s * 0.5);  // horns
+    hadd(box(0.3, 0.06, 0.03), glow, 0, 0.15, -0.16);
+    add(L.sh, cyl(0.0, 0.11, 0.26, 8), glow, 0, 0.2, 0);                    // fire on the left shoulder
+    const water = new THREE.MeshStandardMaterial({ color: '#4fd8ff', emissive: '#1f8fe0', emissiveIntensity: 1.2, transparent: true, opacity: 0.85 });
+    mats.push(water);
+    add(R.sh, new THREE.SphereGeometry(0.1, 12, 10), water, 0, 0.18, 0);    // water orb on the right
+    add(torso, box(0.62, 1.0, 0.04), accentMat, 0, 0.12, 0.21, 'body', 0.1); // cape
+    add(torso, box(0.62, 0.06, 0.06), glow, 0, 0.63, 0.2);                   // cape clasp
+  } else if (style === 'titan') {
+    // horned stone helmet, huge rock pauldrons, armour plates
+    hadd(box(0.36, 0.22, 0.36), plate, 0, 0.22, 0.01);
+    hadd(box(0.3, 0.05, 0.02), glow, 0, 0.16, -0.18);
+    for (const s of [-1, 1]) hadd(cyl(0.02, 0.06, 0.24, 6), plate, s * 0.2, 0.36, 0, 0, 0, -s * 0.9);  // horns
+    for (const s of [-1, 1]) {
+      const sh = s < 0 ? L.sh : R.sh;
+      add(sh, new THREE.DodecahedronGeometry(0.17, 0), plate, s * 0.03, 0.07, 0);  // rock pauldron
+      add(sh, box(0.02, 0.16, 0.02), glow, s * 0.12, 0.04, -0.12);              // lava crack
+    }
+    add(torso, box(0.56, 0.42, 0.1), plate, 0, 0.42, -0.19);                // heavy chest plate
+    add(torso, box(0.04, 0.3, 0.01), glow, 0, 0.42, -0.245, 'body', 0, 0, 0.3); // crack
+    add(torso, box(0.5, 0.45, 0.12), plate, 0, 0.42, 0.22);                  // back plate
+
   } else {
     helmet();
     hadd(box(0.28, 0.09, 0.03), glow, 0, 0.15, -0.15);                     // visor
@@ -165,6 +247,9 @@ export function makeSoldier(color = '#4f7fa8', accent = '#9be8ff', style = 'enem
   muzzle.position.set(0, 0.02, -0.6);
   gun.add(muzzle);
 
+  // silhouettes: Titan is bulky, Ghost and Glitch are lanky
+  const SHAPE = { titan: [1.18, 1.08], ghost: [0.92, 1.04], glitch: [0.94, 1.02], inferno: [1.05, 1.06], nitro: [1, 0.98] }[style];
+  if (SHAPE) { torso.scale.set(SHAPE[0], SHAPE[1], SHAPE[0]); for (const l of legs) l.scale.set(SHAPE[0], SHAPE[1], SHAPE[0]); }
   const joints = { hips, torso, neck, head, shL: L.sh, elL: L.el, shR: R.sh, elR: R.el, legL: legs[0], knL: knees[0], legR: legs[1], knR: knees[1], handL: L.hand, handR: R.hand };
   const model = {
     group: g, head, helmet: headParts[0], hitParts, legs, knees, arms: [L.sh, R.sh], gun, muzzle, joints,

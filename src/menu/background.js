@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { mulberry32, fbm } from '../util/noise.js';
 import {
   FOG_COLOR, makeSky, makeEnvironment, createCliffGeometry, updateCliff, cliffMaterial,
-  makeCrystalCluster, makeIceRock, makeSnow,
+  makeCrystalCluster, makeIceRock, makeSnow, applySkyTheme,
 } from '../world/canyonParts.js';
+import { THEMES, makeTree, makeMushroom, makeBush, makeFlowers, makeHive, makeHiveBox } from '../world/themes.js';
 
 const CHUNK_LEN = 80;
 const CHUNKS = 7;
@@ -20,13 +21,15 @@ export class MenuBackground {
     this.scene.fog = new THREE.Fog(FOG_COLOR, 50, 420);
     this.camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 2500);
     this.t = 0;
+    this.theme = THEMES.ice;
 
-    this.sky = makeSky();
+    this.sky = makeSky(this.theme);
     this.scene.add(this.sky);
-    this.scene.environment = makeEnvironment(renderer);
+    this.scene.environment = makeEnvironment(renderer, this.theme);
     this.scene.environmentIntensity = 0.7;
 
-    this.scene.add(new THREE.HemisphereLight('#cfe6ff', '#2a3d5c', 1.1));
+    this.hemi = new THREE.HemisphereLight('#cfe6ff', '#2a3d5c', 1.1);
+    this.scene.add(this.hemi);
     const sun = new THREE.DirectionalLight('#ffd2b0', 2.4);
     sun.position.set(-40, 60, -120);
     this.sun = sun;
@@ -40,6 +43,28 @@ export class MenuBackground {
     }
 
     this.snow = makeSnow(2600, 55);
+    this.scene.add(this.snow);
+  }
+
+  /** switch the whole fly-through to another map theme (ice / forest / honey) */
+  setTheme(id) {
+    const T = THEMES[id] || THEMES.ice;
+    if (T === this.theme) return;
+    this.theme = T;
+    applySkyTheme(this.sky, T);
+    this.scene.fog.color.set(T.fog);
+    this.scene.fog.near = Math.max(30, T.fogNear - 20);
+    this.scene.fog.far = T.fogFar + 40;
+    this.hemi.color.set(T.hemi[0]); this.hemi.groundColor.set(T.hemi[1]); this.hemi.intensity = T.hemi[2] * 0.95;
+    this.sun.color.set(T.sun[0]); this.sun.intensity = T.sun[1] * 0.92;
+    const old = this.scene.environment;
+    this.scene.environment = makeEnvironment(this.renderer, T);
+    old?.dispose();
+    riverMat.color.set(T.river); riverMat.roughness = T.riverRough;
+    for (const c of this.chunks) { c.left.material.roughness = T.cliffRough; this.buildChunk(c, c.index); }
+    this.scene.remove(this.snow);
+    this.snow.geometry.dispose();
+    this.snow = makeSnow(Math.round(T.particles.count * 1.2), 55, T.particles);
     this.scene.add(this.snow);
   }
 
@@ -64,14 +89,15 @@ export class MenuBackground {
   buildChunk(c, index) {
     c.index = index;
     const z0 = -index * CHUNK_LEN;
-    const opts = { z0, len: CHUNK_LEN, baseX: 24, height: 70, seed: 7, notch: 14 };
+    const T = this.theme || THEMES.ice;
+    const opts = { z0, len: CHUNK_LEN, baseX: 24, height: 70, seed: 7, notch: 14, colors: T.id === 'ice' ? null : T.cliff };
     updateCliff(c.left.geometry, { ...opts, side: -1 });
     updateCliff(c.right.geometry, { ...opts, side: 1, seed: 13 });
 
     // Snow banks rising toward the cliffs
     const p = c.bank.geometry.attributes.position;
     const col = c.bank.geometry.attributes.color;
-    const snow = new THREE.Color('#eef6ff'), blue = new THREE.Color('#a9cfe8'), tmp = new THREE.Color();
+    const snow = new THREE.Color(T.bank[1]), blue = new THREE.Color(T.bank[0]), tmp = new THREE.Color();
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i);
       const zl = p.getZ(i);
@@ -91,18 +117,22 @@ export class MenuBackground {
     // Props
     c.props.children.slice().forEach((o) => {
       c.props.remove(o);
-      o.traverse((m) => { if (m.isMesh && m.geometry.type === 'IcosahedronGeometry') m.geometry.dispose(); });
+      o.traverse((m) => { if (m.isMesh && !(m.geometry.type === 'CylinderGeometry' && m.geometry.parameters.radiusTop === 0 && m.geometry.parameters.radialSegments === 6)) m.geometry.dispose(); });
     });
     const rng = mulberry32(index * 7919 + 3);
+    const prop = (s) => T.prop === 'tree' ? (rng() < 0.6 ? makeTree(rng, s * 1.1) : rng() < 0.5 ? makeMushroom(rng, s * 1.4) : makeBush(rng, s))
+      : T.prop === 'flower' ? (rng() < 0.65 ? makeFlowers(rng, s * 1.6) : makeHiveBox(rng, s))
+      : makeCrystalCluster(rng, s);
     for (let i = 0; i < 9; i++) {
       const side = rng() < 0.5 ? -1 : 1;
-      const cl = makeCrystalCluster(rng, 1 + rng() * 1.8);
+      const cl = prop(1 + rng() * 1.8);
       cl.position.set(side * (12 + rng() * 12), 0, z0 - rng() * CHUNK_LEN);
       c.props.add(cl);
     }
+    const rockMat = T.id === 'ice' ? undefined : (this._rockMats ||= {})[T.id] ||= new THREE.MeshStandardMaterial({ color: T.rock, roughness: 0.85, flatShading: true });
     for (let i = 0; i < 5; i++) {
       const s = 1.5 + rng() * 3.5;
-      const rock = makeIceRock(rng, s, s * (0.6 + rng() * 0.6), s);
+      const rock = makeIceRock(rng, s, s * (0.6 + rng() * 0.6), s, rockMat);
       const side = rng() < 0.5 ? -1 : 1;
       rock.position.set(side * (9 + rng() * 14), 0.2, z0 - rng() * CHUNK_LEN);
       rock.rotation.y = rng() * Math.PI;
@@ -110,10 +140,10 @@ export class MenuBackground {
     }
     // Occasional ice pillar on the frozen river
     if (rng() < 0.6) {
-      const pil = makeIceRock(rng, 1.4, 9 + rng() * 6, 1.4);
+      const pil = T.pillar === 'tree' ? makeTree(rng, 2.4) : T.pillar === 'hive' ? makeHive(rng, 1.2) : makeIceRock(rng, 1.4, 9 + rng() * 6, 1.4);
       pil.position.set((rng() - 0.5) * 8, 0, z0 - rng() * CHUNK_LEN);
       c.props.add(pil);
-      const cl = makeCrystalCluster(rng, 1.5);
+      const cl = prop(1.5);
       cl.position.copy(pil.position).add(new THREE.Vector3(1.5, 0, 0.5));
       c.props.add(cl);
     }

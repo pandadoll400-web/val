@@ -7,7 +7,7 @@ import { serverNow } from '../net/firebase.js';
 const INTERP_DELAY = 110; // ms behind the newest data → always two snapshots to blend between
 const MAX_EXTRAP = 200;   // ms of extrapolation when packets are late
 
-export const F_CROUCH = 1, F_SLIDE = 2, F_INVIS = 4, F_ALIVE = 8, F_GROUND = 16, F_SPRINT = 32, F_SHIELD = 64;
+export const F_CROUCH = 1, F_SLIDE = 2, F_INVIS = 4, F_ALIVE = 8, F_GROUND = 16, F_SPRINT = 32, F_SHIELD = 64, F_GOLEM = 128;
 
 function nameTag(text, color) {
   const c = document.createElement('canvas');
@@ -101,6 +101,7 @@ export class RemotePlayer {
     this.alive = alive;
     this.invisible = !!(snap.f & F_INVIS);
     this.shield = !!(snap.f & F_SHIELD);
+    this.golem = !!(snap.f & F_GOLEM);
     this.weaponId = snap.w;
     // new shots since the last snapshot → muzzle flash, tracer, sound on my screen
     if (this.shotSeq >= 0 && snap.seq > this.shotSeq) this.game.net?.playRemoteShots(this, Math.min(4, snap.seq - this.shotSeq), snap.t);
@@ -180,6 +181,17 @@ export class RemotePlayer {
       g.rotation.set(damp(g.rotation.x, 0, 12, dt), this.yaw, 0);
     }
     this.bubble.visible = !!this.shield && this.alive;
+    // Titan golem: bigger, stone-coloured with glowing cracks
+    if (this.golem !== this._golemShown) {
+      this._golemShown = this.golem;
+      const b = this.model.materials.body;
+      if (!this._bodyBase) this._bodyBase = b.color.clone();
+      b.color.copy(this.golem ? new THREE.Color('#7a7068') : this._bodyBase);
+      b.emissive.set(this.golem ? '#ff5a10' : '#000000');
+      b.emissiveIntensity = this.golem ? 0.25 : 1;
+      this.model.group.scale.setScalar(this.golem ? 1.35 : 1);
+      this.game.effects.burst(this.position.clone().setY(1), { count: 20, color: '#8a7f72', speed: 4, size: 0.08, life: 0.7 });
+    }
     if (this.bubble.visible) this.bubble.material.opacity = 0.2 + Math.sin(performance.now() * 0.01) * 0.06;
     // stealth: almost invisible (only a faint shimmer)
     const op = this.invisible ? 0.07 : 1;

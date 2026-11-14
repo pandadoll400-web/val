@@ -9,6 +9,7 @@ import { Game } from './game/game.js';
 import { NetSession } from './net/session.js';
 import { audio } from './audio.js';
 import { save } from './save.js';
+import { THEMES } from './world/themes.js';
 import { IS_TOUCH } from './game/touch.js';
 
 const canvas = document.getElementById('gl');
@@ -71,6 +72,37 @@ window.__room = room;
 // the selected character standing in the empty right side of the main menu
 const menuStage = new CharStage();
 
+// menu background cycles through the three maps every 15 s; the title follows
+const MENU_THEMES = ['ice', 'forest', 'honey'];
+let menuThemeI = 0, menuThemeT = 0, fadeT = -1;
+const fadeEl = document.createElement('div');
+fadeEl.id = 'menu-fade';
+document.body.appendChild(fadeEl);
+function applyMenuTitle(id) {
+  const T = THEMES[id];
+  const eyebrow = document.querySelector('#menu .eyebrow'), title = document.querySelector('#menu .title'), lead = document.querySelector('#menu .lead');
+  for (const el of [eyebrow, title, lead]) { if (!el) continue; el.classList.remove('swap'); void el.offsetWidth; el.classList.add('swap'); }
+  if (eyebrow) eyebrow.textContent = `${T.en} · 3D`;
+  if (title) title.textContent = T.name;
+  if (lead) lead.innerHTML = T.lead;
+}
+function updateMenuTheme(dt) {
+  menuThemeT += dt;
+  if (fadeT < 0 && menuThemeT >= 15) { fadeT = 0; fadeEl.className = 'on ' + MENU_THEMES[(menuThemeI + 1) % 3]; }
+  if (fadeT >= 0) {
+    fadeT += dt;
+    if (fadeT >= 0.45 && menuThemeT >= 15) {
+      menuThemeI = (menuThemeI + 1) % MENU_THEMES.length;
+      menuThemeT = 0;
+      bg.setTheme(MENU_THEMES[menuThemeI]);
+      applyMenuTitle(MENU_THEMES[menuThemeI]);
+      fadeEl.classList.remove('on');
+    }
+    if (fadeT >= 1.0) fadeT = -1;
+  }
+}
+window.__menuTheme = (i) => { menuThemeT = 15; menuThemeI = (i + 2) % 3; }; // test hook: jump to theme i
+
 const clock = new THREE.Clock();
 let frame = 0;
 function loop() {
@@ -86,6 +118,7 @@ function loop() {
   }
   if (LITE) return;
   bg.update(dt);
+  updateMenuTheme(dt);
   // while the character panel is open, draw the background at half rate so the preview stays smooth
   if (!ui.previewActive || frame % 2 === 0) bg.render();
   ui.updatePreview(Math.min(raw, 0.25)); // real time, so emotes play at full speed even at low FPS

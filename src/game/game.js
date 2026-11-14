@@ -13,9 +13,11 @@ import { RemotePlayer } from './remotePlayer.js';
 import { IS_TOUCH, TouchControls } from './touch.js';
 import { serverNow } from '../net/firebase.js';
 import { MODE_NAMES } from '../net/room.js';
+import { getTheme, randomMap } from '../world/themes.js';
+import { getPortrait } from '../menu/ui.js';
 
 const $ = (id) => document.getElementById(id);
-export const ENEMY_COUNT = 15;
+export const ENEMY_COUNT = 7;
 const COIN_PER_KILL = 20;
 const COIN_WIN = 300;
 
@@ -30,6 +32,8 @@ export class Game {
     this.score = { A: 0, B: 0 };
     this.startAt = net ? net.meta.startAt : 0;
     this.respawnAt = 0;
+    this.deaths = 0;
+    this.assists = 0;
     this.hits = 0;
     this.pickups = [];
     this.renderer = renderer;
@@ -51,7 +55,9 @@ export class Game {
     this.camera.rotation.order = 'YXZ';
     this.character = getCharacter(save.character);
 
-    this.world = new IceCanyonWorld(this.scene, renderer, mode === 'training' ? 'range' : 'arena');
+    this.mapId = net?.meta.map || window.__forceMap || randomMap(); // __forceMap: test hook
+    this.mapName = getTheme(this.mapId).name;
+    this.world = new IceCanyonWorld(this.scene, renderer, mode === 'training' ? 'range' : 'arena', this.mapId);
     this.effects = new Effects(this);
     this.player = new Player(this);
     this.skills = new SkillSystem(this);
@@ -94,8 +100,8 @@ export class Game {
     $('hud').classList.remove('hidden');
     $('result').classList.add('hidden');
     audio.init();
-    if (this.net) this.hud.msg(`${MODE_NAMES[this.mode]} — ${this.net.target}킬을 먼저 달성하는 팀이 승리!`, 3.5);
-    else this.hud.msg(this.mode === 'training' ? '훈련장 — 표적은 움직이거나 공격하지 않습니다 · Esc로 나가기' : `적 ${this.totalEnemies}명을 모두 처치하라!`, 3.5);
+    if (this.net) this.hud.msg(`${this.mapName} · ${MODE_NAMES[this.mode]} — ${this.net.target}킬을 먼저 달성하는 팀이 승리!`, 3.5);
+    else this.hud.msg(this.mode === 'training' ? `${this.mapName} 훈련장 — 표적은 움직이거나 공격하지 않습니다 · Esc로 나가기` : `${this.mapName} — 적 ${this.totalEnemies}명을 모두 처치하라!`, 3.5);
     this.lock();
   }
 
@@ -150,7 +156,7 @@ export class Game {
     this.coinsEarned += COIN_PER_KILL;
     this.spawnAmmo(bot.position);
     const left = this.totalEnemies - this.kills;
-    if (left > 0 && left <= 5 && !this.huntAll) {
+    if (left > 0 && left <= 3 && !this.huntAll) {
       this.huntAll = true;
       this.hud.msg(`남은 적 ${left}명 — 적들이 당신을 추적합니다!`, 3);
     }
@@ -184,7 +190,7 @@ export class Game {
           const cur = i === w.cur, k = s.def.kind;
           if (k === 'melee') return;
           if (k === 'grenade') {
-            if (s.mag + s.reserve < 3) { if (s.mag === 0 && w.throwT < 0) s.mag = 1; else s.reserve++; parts.push('수류탄 +1'); }
+            if (s.mag + s.reserve < s.def.mag + s.def.reserve) { if (s.mag === 0 && w.throwT < 0) s.mag = 1; else s.reserve++; parts.push(`${s.def.name} +1`); }
             return;
           }
           const add = k === 'bow' ? (cur ? 6 : 3) : Math.max(1, s.def.mag) * (cur ? 2 : 1);
@@ -205,6 +211,8 @@ export class Game {
       $('death').classList.remove('hidden');
       $('death-by').textContent = `${info.killer || '상대'}에게 처치당했습니다`;
       this.respawnAt = this.time + 3;
+      this.deaths++;
+      this.net.pushStats(this.kills, this.deaths, this.assists);
       this.skills.cancelCharge();
       this.net.reportDeath(info.killerUid, info.weapon, info.headshot);
       return;
@@ -429,8 +437,19 @@ export class Game {
     const mine = v.killer === this.net.uid;
     const name = (uid, n) => (uid === this.net.uid ? `<span class="me">${n}</span>` : n);
     this.hud.killfeed(`${name(v.killer, v.killerName)}<span class="w">${v.weapon}${v.head ? ' <span class="hs">◎ 헤드샷</span>' : ''}</span>${name(v.victim, v.victimName)}`);
-    if (!mine) return;
+    if (!mine) {
+      // assist: I hurt the victim in the last 8 s but someone else got the kill
+      const vr = this.remotes[v.victim];
+      if (vr && vr._hitAt && performance.now() - vr._hitAt < 8000 && v.victim !== this.net.uid) {
+        this.assists++;
+        vr._hitAt = 0;
+        this.hud.msg('어시스트!', 1);
+        this.net.pushStats(this.kills, this.deaths, this.assists);
+      }
+      return;
+    }
     this.kills++;
+    this.net.pushStats(this.kills, this.deaths, this.assists);
     if (v.head) this.headshots++;
     this.coinsEarned += COIN_PER_KILL;
     this.skills.onKill();
@@ -460,7 +479,7 @@ export class Game {
       audio.skill('zap', this.player.position.distanceTo(V(d.a)));
     } else if (d.k === 'ring') this.effects.ring(V(d), d.c, d.r, 0.6, 0.15);
     else if (d.k === 'laser') s.remoteLaser(d);
-    else if (d.k === 'steam') s.createSteam(V(d), true);
+    else if (d.k === 'steam') s.createSteam(V(d), true, d.o || {});
     else if (d.k === 'ink') s.createInk(V(d), { ...d.o, visual: true });
   }
 
@@ -476,10 +495,34 @@ export class Game {
     if (!enemiesLeft && !this.over) this.net.endMatch({ winner: this.myTeam, reason: 'left' });
   }
 
+  /** K / D / A table for every player of the match, my team first */
+  statsTable() {
+    const net = this.net, st = { ...net.stats, [net.uid]: { k: this.kills, d: this.deaths, a: this.assists } };
+    const rows = Object.entries(net.players).map(([uid, p]) => ({ uid, p, s: st[uid] || { k: 0, d: 0, a: 0 } }));
+    const best = Math.max(...rows.map((r) => r.s.k));
+    const team = (t) => rows.filter((r) => r.p.team === t).sort((a, b) => b.s.k - a.s.k || a.s.d - b.s.d).map((r) => {
+      const c = getCharacter(r.p.char), face = getPortrait(c);
+      return `<tr class="${r.uid === net.uid ? 'me' : ''}">
+        <td class="kp">${face ? `<img src="${face}" alt="">` : ''}<span>${r.s.k === best && best > 0 ? '★ ' : ''}${r.p.name}<small>${c.name}</small></span></td>
+        <td>${r.s.k}</td><td>${r.s.d}</td><td>${r.s.a}</td></tr>`;
+    }).join('');
+    const my = this.myTeam, other = my === 'A' ? 'B' : 'A';
+    return `<table class="kda">
+      <thead><tr><th>플레이어</th><th>킬</th><th>데스</th><th>어시</th></tr></thead>
+      <tbody class="ally">${team(my)}</tbody><tbody class="enemy">${team(other)}</tbody></table>`;
+  }
+
+  onNetStats() {
+    if (this.over && !document.getElementById('result').classList.contains('hidden')) {
+      const t = document.querySelector('#result-body table.kda');
+      if (t) t.outerHTML = this.statsTable();
+    }
+  }
+
   scoreText() {
     const s = this.score || { A: 0, B: 0 }, my = this.myTeam, other = my === 'A' ? 'B' : 'A';
     const label = this.mode === 'duel' ? ['나', Object.values(this.remotes)[0]?.name || '상대'] : ['우리 팀', '상대 팀'];
-    return `${label[0]} ${s[my] || 0} : ${s[other] || 0} ${label[1]} · ${this.net.target}킬 선승`;
+    return `${label[0]} ${s[my] || 0} : ${s[other] || 0} ${label[1]} · ${this.net.target}킬 선승 · K/D/A ${this.kills}/${this.deaths}/${this.assists}`;
   }
 
   finishNet(result) {
@@ -499,8 +542,8 @@ export class Game {
     $('result-body').innerHTML = `
       ${result.reason === 'left' ? (win ? '상대가 모두 나가서 승리했습니다.' : '경기가 종료되었습니다.') : win ? '상대를 제압했습니다!' : '상대 팀이 먼저 목표 처치 수에 도달했습니다.'}<br>
       점수 <b>${s[my] || 0} : ${s[other] || 0}</b><br>
-      내 처치 <b>${this.kills}</b> · 헤드샷 <b>${this.headshots}</b><br>
-      획득 코인 <span class="coin">◆ ${this.coinsEarned.toLocaleString()}</span>`;
+      획득 코인 <span class="coin">◆ ${this.coinsEarned.toLocaleString()}</span>
+      ${this.statsTable()}`;
     $('result').classList.remove('hidden');
     $('result-again').textContent = '대기실로';
     $('result-exit').textContent = '방 나가기';

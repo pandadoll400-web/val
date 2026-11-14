@@ -99,6 +99,14 @@ export const WEAPONS = {
   },
 };
 
+WEAPONS.smoke = {
+  id: 'smoke', cat: 'sidearm', name: '연막탄', model: 'M-18 연막 수류탄', kind: 'grenade', smoke: true, rarity: 'rare', price: 400,
+  desc: '좌클릭 멀리 · 우클릭 가까이. 1.4초 뒤 반경 5m에 8초간 짙은 연막 — 적의 시야를 가린다. 2개 지급, 탄약 상자로 보충.',
+  damage: 0, minDamage: 0, radius: 5, duration: 8, fuse: 1.4, mag: 1, reserve: 1, reload: 0, mobility: 1.05, adsFov: 75, range: 0,
+  spread: { hip: 0, move: 0, ads: 0, bloom: 0, maxBloom: 0 },
+  stats: { damage: 0, rate: 15, range: 30, mobility: 100 },
+};
+
 export const CATEGORIES = [
   { id: "primary", name: "무기1", sub: "돌격" },
   { id: "secondary", name: "무기2", sub: "정밀" },
@@ -107,7 +115,7 @@ export const CATEGORIES = [
 export const CATEGORY_ORDER = {
   primary: ["smg", "rifle", "shotgun", "lmg"],
   secondary: ["burst", "dmr", "sniper", "bow"],
-  sidearm: ["pistol", "knife", "grenade"],
+  sidearm: ["pistol", "knife", "grenade", "smoke"],
 };
 export const WEAPON_ORDER = [...CATEGORY_ORDER.primary, ...CATEGORY_ORDER.secondary, ...CATEGORY_ORDER.sidearm];
 export const DEFAULT_LOADOUT = { primary: "smg", secondary: "burst", sidearm: "pistol" };

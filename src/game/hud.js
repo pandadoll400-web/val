@@ -2,9 +2,11 @@ import * as THREE from 'three';
 import { getWeaponIcon } from './gunModels.js';
 
 const $ = (id) => document.getElementById(id);
+const getThemeName = (game) => game.mapName || '얼음 협곡';
 const TINTS = {
   stealth: 'radial-gradient(ellipse at center, rgba(90,40,200,0) 40%, rgba(90,40,200,.45) 100%)',
   overheat: 'radial-gradient(ellipse at center, rgba(255,90,20,0) 45%, rgba(255,90,20,.4) 100%)',
+  golem: 'radial-gradient(ellipse at center, rgba(120,95,70,0) 45%, rgba(120,95,70,.45) 85%, rgba(255,120,40,.35) 100%)',
   shield: 'radial-gradient(ellipse at center, rgba(255,182,39,0) 40%, rgba(255,182,39,.35) 80%, rgba(255,61,242,.35) 100%)',
   echo: 'radial-gradient(ellipse at center, rgba(255,95,184,0) 45%, rgba(255,95,184,.38) 100%)',
   slow: 'radial-gradient(ellipse at center, rgba(120,200,255,0) 45%, rgba(120,200,255,.4) 100%)',
@@ -29,7 +31,7 @@ export class HUD {
     this.el.dmg.innerHTML = '';
     $('death').classList.add('hidden');
     $('scoreboard').classList.add('hidden');
-    this.el.mode.textContent = game.net ? `FROST CANYON · ${{ duel: '듀얼 1대1', duo: '듀오 2대2' }[game.mode]}` : game.mode === 'training' ? 'FROST CANYON · 훈련장' : 'FROST CANYON · 섬멸전';
+    this.el.mode.textContent = `FROST CANYON · ${getThemeName(game)} · ` + (game.net ? { duel: '듀얼 1대1', duo: '듀오 2대2' }[game.mode] : game.mode === 'training' ? '훈련장' : '섬멸전');
     $('hud-char').textContent = `${game.character.name} · ${game.character.title}`;
 
     this.el.slots.innerHTML = game.weapons.slots.map((s, i) => `
@@ -117,7 +119,7 @@ export class HUD {
     const melee = s.def.kind === 'melee', nade = s.def.kind === 'grenade';
     this.el.mag.textContent = melee ? '∞' : nade ? s.mag + s.reserve : s.mag;
     this.el.mag.classList.toggle('low', !melee && (nade ? s.mag + s.reserve === 0 : s.mag <= Math.ceil(s.def.mag * 0.25)));
-    this.el.res.textContent = melee ? '근접' : nade ? '수류탄' : s.reserve;
+    this.el.res.textContent = melee ? '근접' : nade ? s.def.name : s.reserve;
 
     // crosshair
     const spreadPx = w.currentSpread() / Math.tan((g.camera.fov * Math.PI) / 360) * (innerHeight / 2);
@@ -132,7 +134,7 @@ export class HUD {
     if (this.tempMsg && performance.now() < this.tempUntil) text = this.tempMsg;
     else if (g.skills.charging) text = g.skills.charging.t < 0.25 ? '' : (g.skills.charging.key === 'q' ? 'Q를 떼서 잉크 던지기' : g.character.id === 'nitro' ? 'E를 떼서 불꽃 구체 던지기' : 'E를 떼서 냉기 구체 발사') + (g.skills.charging.t >= 2 ? ' — 최대 충전!' : '');
     else if (melee) text = '';
-    else if (nade) text = s.mag + s.reserve === 0 ? '수류탄 없음 — 탄약 상자로 보충' : '';
+    else if (nade) text = s.mag + s.reserve === 0 ? `${s.def.name} 없음 — 탄약 상자로 보충` : '';
     else if (w.reloading) text = '재장전 중...';
     else if (s.mag === 0 && s.reserve === 0) text = s.def.kind === 'bow' ? '화살 없음 — 적이 떨군 상자를 주우세요' : '탄약 없음 — 적이 떨군 탄약 상자를 주우세요';
     else if (s.mag === 0) text = s.def.kind === 'bow' ? '' : 'R — 재장전';
@@ -156,7 +158,7 @@ export class HUD {
     this.skillEls.e.el.classList.toggle('fire', g.character.id === 'nitro');
     this.skillEls.q.el.classList.toggle('ink', g.character.id === 'inker');
     const steam = g.skills.inSteam;
-    if (this._steam !== steam) { this._steam = steam; document.getElementById('steam-overlay').classList.toggle('on', !!steam); }
+    if (this._steam !== steam) { this._steam = steam; const so = document.getElementById('steam-overlay'); so.classList.toggle('on', !!steam); so.classList.toggle('smoke', steam === 'smoke'); }
     const badge = g.character.id === 'ghost' ? (g.skills.souls > 0 ? '👻' + g.skills.souls : '') : g.skills.echoBuffT > 0 ? '×1.5' : '';
     const eb = this.skillEls.e.badge, ebt = g.character.id === 'glitch' ? '◈'.repeat(g.skills.glitchStacks) : '';
     if (eb.textContent !== ebt) eb.textContent = ebt;

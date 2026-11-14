@@ -784,7 +784,26 @@ function grenade() {
   };
 }
 
-export const GUN_BUILDERS = { pistol, knife, smg, shotgun, rifle, bow, dmr, sniper, lmg, burst, grenade };
+/* smoke grenade: grey-green canister with a pin and a top nozzle */
+function smoke() {
+  const m = grenade();
+  const held = m.held;
+  held.clear();
+  part(held, C(0.026, 0.07, 18), VM.camo, 0, 0, 0);                                            // canister
+  part(held, C(0.0265, 0.012, 18), VM.metal2, 0, 0.03, 0);
+  part(held, C(0.0265, 0.012, 18), VM.metal2, 0, -0.03, 0);
+  part(held, B(0.04, 0.012, 0.0012), VM.white, 0, 0.0, 0.0265);                               // label
+  part(held, C(0.012, 0.012, 12), VM.metal, 0, 0.042, 0);                                      // nozzle
+  prof(held, [[-0.004, 0.05], [0.012, 0.05], [0.014, 0.028], [0.012, -0.03], [0.004, -0.03], [0.006, 0.042], [-0.004, 0.044]], 0.012, VM.steel, 0.001, 0);
+  const pin = new THREE.Group();
+  pin.position.set(0.016, 0.046, 0);
+  part(pin, new THREE.TorusGeometry(0.011, 0.0018, 6, 18), VM.steel, 0.008, 0, 0, 0, Math.PI / 2, 0);
+  held.add(pin);
+  m.pin = pin;
+  return m;
+}
+
+export const GUN_BUILDERS = { pistol, knife, smg, shotgun, rifle, bow, dmr, sniper, lmg, burst, grenade, smoke };
 
 // which skin slot each shared viewmodel material maps to
 const SKIN_SLOT = new Map([

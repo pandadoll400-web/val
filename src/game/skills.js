@@ -88,6 +88,8 @@ export class SkillSystem {
     this.laser = null;    // Glitch: active Q laser
     this.echoBuffT = 0;   // Echo: weapon damage x1.5
     this.trail = null;    // Nitro: fire trail while dashing
+    this.golemT = 0;      // Titan: stone golem (damage x1.6)
+    this.titanStacks = 0; // Titan: +20 max HP per Q (max 3)
   }
 
   /** key released: fire a held skill (Frost E) */
@@ -541,7 +543,7 @@ export class SkillSystem {
   }
 
   /* ================= 에코 ================= */
-  damageMul() { return this.echoBuffT > 0 ? 1.5 : 1; }
+  damageMul() { return (this.echoBuffT > 0 ? 1.5 : 1) * (this.golemT > 0 ? 1.6 : 1); }
 
   echo_q() {
     const ok = this.game.weapons.playEchoInsert(() => {
@@ -733,13 +735,14 @@ export class SkillSystem {
     audio.skill('flame');
   }
 
-  createSteam(pos, visual = false) {
-    if (!visual) this.game.net?.fx({ k: 'steam', x: pos.x, y: pos.y, z: pos.z });
-    const R = 4.6, group = new THREE.Group();
+  createSteam(pos, visual = false, opts = {}) {
+    if (!visual) this.game.net?.fx({ k: 'steam', x: pos.x, y: pos.y, z: pos.z, o: opts });
+    const R = opts.radius || 4.6, group = new THREE.Group();
+    const cols = opts.smoke ? ['#8d939a', '#6f757c'] : ['#e9eff5', '#cfd9e3'];
     group.position.copy(pos);
     const puffs = [];
     for (let i = 0; i < 34; i++) {
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: steamTexture(), color: i % 4 ? '#e9eff5' : '#cfd9e3', transparent: true, opacity: 0, depthWrite: false }));
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: steamTexture(), color: i % 4 ? cols[0] : cols[1], transparent: true, opacity: 0, depthWrite: false }));
       const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * R * 0.85;
       sp.position.set(Math.cos(a) * r, 0.4 + Math.random() * 3.4, Math.sin(a) * r);
       const s = 2.6 + Math.random() * 2.6;
@@ -756,7 +759,7 @@ export class SkillSystem {
     this.game.scene.add(cover);
     this.game.world.cover.push(cover);
     this.fx.burst(pos.clone().setY(pos.y + 1), { count: 30, color: '#ffffff', speed: 6, size: 0.08, gravity: -1, life: 0.8 });
-    this.zones.push({ kind: 'steam', group, puffs, cover, pos: pos.clone(), radius: R, t: 6, age: 0 });
+    this.zones.push({ kind: 'steam', group, puffs, cover, pos: pos.clone(), radius: R, t: opts.t || 6, age: 0, smoke: !!opts.smoke });
   }
 
   updateSteam(z, dt) {
@@ -768,7 +771,7 @@ export class SkillSystem {
       sp.position.y += u.vy * dt * 0.3;
       sp.material.rotation += u.rot * dt;
       sp.scale.setScalar(u.s * (0.7 + 0.3 * fadeIn) * (1 + Math.sin(u.ph) * 0.05));
-      sp.material.opacity = 0.82 * fadeIn * fadeOut;
+      sp.material.opacity = (z.smoke ? 0.9 : 0.82) * fadeIn * fadeOut;
     }
   }
 
@@ -848,6 +851,39 @@ export class SkillSystem {
       if (dx * dx + dz * dz < z.radius * z.radius && Math.abs(p.y - z.pos.y) < 1.5) best = Math.max(best, z.boost);
     }
     return best;
+  }
+
+  /* ================= 타이탄 (영웅) ================= */
+  titan_q() {
+    if (this.titanStacks >= 3) { this.game.hud.msg('최대 체력이 이미 최대입니다 (210)'); return false; }
+    this.titanStacks++;
+    this.p.maxHp += 20;
+    this.p.heal(20);
+    this.game.hud.flashTint('rgba(255,160,60,.3)');
+    this.fx.burst(this.p.position.clone().setY(1), { count: 18, color: '#ffb35a', speed: 3, size: 0.06, gravity: -2, life: 0.9 });
+    audio.skill('rock');
+    this.game.hud.msg(`거인의 체력 — 최대 체력 ${this.p.maxHp}`, 1.4);
+  }
+
+  titan_e() {
+    this.golemT = 8;
+    this.game.weapons.setGolem(true);
+    const c = this.p.position.clone();
+    this.fx.ring?.(c.clone().setY(0.1), '#ff8a2a', 5, 0.5, 0.1);
+    this.fx.burst(c.clone().setY(0.4), { count: 30, color: '#8a7f72', speed: 6, size: 0.1, life: 0.8 });
+    this.fx.puff(c.clone().setY(0.5), '#9a8f82', 3, 0.6, 0.8);
+    this.game.hud.flashTint('rgba(140,110,80,.45)');
+    this.p.addRecoil(0.03, 0);
+    audio.skill('rock');
+    audio.skill('boom');
+    this.game.hud.msg('돌 골렘! 8초간 피해 1.6배', 1.6);
+  }
+
+  endGolem() {
+    this.golemT = 0;
+    this.game.weapons.setGolem(false);
+    this.fx.burst(this.p.position.clone().setY(1), { count: 20, color: '#8a7f72', speed: 4, size: 0.08, life: 0.7 });
+    audio.skill('rock');
   }
 
   /* ================= 볼트 ================= */
@@ -954,18 +990,20 @@ export class SkillSystem {
     this.cd.e = Math.max(0, this.cd.e - dt);
     if (this.overheatT > 0) this.overheatT -= dt;
     if (this.echoBuffT > 0) this.echoBuffT -= dt;
+    if (this.golemT > 0) { this.golemT -= dt; if (this.golemT <= 0 || !this.p.alive) this.endGolem(); }
     if (this.p.shieldT > 0) {
       this.p.shieldT -= dt;
       if (this.p.shieldT <= 0) { this.game.weapons.endCast(); audio.skill('absorb'); }
     }
     this.p.inkBoost = this.inkBoostAt(this.p.position);
     const cam = this.game.camera.position;
-    this.inSteam = this.zones.some((z) => z.kind === 'steam' && z.age > 0.3 && z.t > 0.6 && cam.distanceTo(z.pos.clone().setY(z.pos.y + 1.6)) < z.radius * 0.85);
+    const inZ = this.zones.find((z) => z.kind === 'steam' && z.age > 0.3 && z.t > 0.6 && cam.distanceTo(z.pos.clone().setY(z.pos.y + 1.6)) < z.radius * 0.85);
+    this.inSteam = inZ ? (inZ.smoke ? 'smoke' : 'steam') : false;
     this.updateTrail(dt);
     this.updateLaser(dt);
     this.updateRemoteLasers(dt);
     if (this.invisT > 0) { this.invisT -= dt; if (this.invisT <= 0) this.endInvis(); }
-    this.game.hud.setTint(this.p.shieldT > 0 ? 'shield' : this.invisT > 0 ? 'stealth' : this.overheatT > 0 ? 'overheat' : this.echoBuffT > 0 ? 'echo' : this.p.slowT > 0 ? 'slow' : null);
+    this.game.hud.setTint(this.p.shieldT > 0 ? 'shield' : this.golemT > 0 ? 'golem' : this.invisT > 0 ? 'stealth' : this.overheatT > 0 ? 'overheat' : this.echoBuffT > 0 ? 'echo' : this.p.slowT > 0 ? 'slow' : null);
 
     const world = this.game.world;
     for (let i = this.walls.length - 1; i >= 0; i--) {

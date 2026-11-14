@@ -192,7 +192,8 @@ export async function createMatch(mode, parties, teams) {
     }
   }
   const startAt = serverNow() + 3500;
-  await set(mref, { meta: { mode, state: 'playing', startAt, created: Date.now(), target: WIN_KILLS[mode] }, players });
+  const map = ['ice', 'forest', 'honey'][Math.floor(Math.random() * 3)]; // every match: a random map
+  await set(mref, { meta: { mode, map, state: 'playing', startAt, created: Date.now(), target: WIN_KILLS[mode] }, players });
   await Promise.all(parties.map((p) => update(ref(getDb(), `rooms/${p.code}/meta`), { state: 'playing', match: mref.key, startAt })));
   return mref.key;
 }

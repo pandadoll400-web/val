@@ -3,7 +3,7 @@ import {
   getDb, ref, set, get, push, remove, onValue, onChildAdded, onChildChanged, onChildRemoved, off,
   onDisconnect, runTransaction, serverNow,
 } from './firebase.js';
-import { F_CROUCH, F_SLIDE, F_INVIS, F_ALIVE, F_GROUND, F_SPRINT, F_SHIELD } from '../game/remotePlayer.js';
+import { F_CROUCH, F_SLIDE, F_INVIS, F_ALIVE, F_GROUND, F_SPRINT, F_SHIELD, F_GOLEM } from '../game/remotePlayer.js';
 import { audio } from '../audio.js';
 import { WEAPONS } from '../data/weapons.js';
 
@@ -35,6 +35,7 @@ export class NetSession {
     this.shotSeq = 0;
     this.tracerEnd = null;
     this.score = { A: 0, B: 0 };
+    this.stats = {}; // uid → { k, d, a }
     this.ended = false;
     this.present = new Set();
     this.listeners = [];
@@ -59,6 +60,7 @@ export class NetSession {
     onChildChanged(live, onLive);
     onChildAdded(track(this.r(`ev/${this.uid}`)), (s) => this.onEvent(s));
     onValue(track(this.r('score')), (s) => { this.score = { A: 0, B: 0, ...(s.val() || {}) }; game.onNetScore?.(this.score); });
+    onValue(track(this.r('stats')), (s) => { this.stats = s.val() || {}; game.onNetStats?.(this.stats); });
     onValue(track(this.r('meta')), (s) => {
       const m = s.val();
       if (m) this.meta = m;
@@ -106,6 +108,7 @@ export class NetSession {
     if (p.onGround) f |= F_GROUND;
     if (p.sprinting) f |= F_SPRINT;
     if (p.shieldT > 0) f |= F_SHIELD;
+    if (g.skills.golemT > 0) f |= F_GOLEM;
     const t = this.tracerEnd || p.position;
     const data = [r2(p.position.x), r2(p.position.y), r2(p.position.z), r3(p.yaw), r3(p.pitch), g.weapons.def.id, f,
       Math.max(0, Math.round(p.hp)), this.shotSeq, r2(t.x), r2(t.y), r2(t.z), Math.round(serverNow())];
@@ -166,6 +169,12 @@ export class NetSession {
     const res = await runTransaction(this.r(`score/${team}`), (n) => (n || 0) + 1);
     const val = res.snapshot.val();
     if (val >= this.target) this.endMatch({ winner: team, reason: 'kills' });
+  }
+
+  /** my kills / deaths / assists, shown to everybody on the result screen */
+  pushStats(k, d, a) {
+    this.stats[this.uid] = { k, d, a };
+    set(this.r(`stats/${this.uid}`), { k, d, a }).catch(() => {});
   }
 
   async endMatch(result) {

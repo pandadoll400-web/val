@@ -497,7 +497,7 @@ export class WeaponSystem {
     const game = this.game, s = this.slot, def = s.def, cam = game.camera;
     s.mag = 0;
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
-    const mesh = buildGun('grenade', null).held;
+    const mesh = buildGun(def.id, null).held;
     mesh.position.set(0, 0, 0);
     mesh.scale.setScalar(1.7);
     mesh.traverse((o) => { if (o.isMesh) o.castShadow = true; });
@@ -517,6 +517,13 @@ export class WeaponSystem {
     const game = this.game, def = gr.def, pos = gr.mesh.position.clone();
     game.scene.remove(gr.mesh);
     gr.mesh.traverse((o) => o.isMesh && o.geometry.dispose());
+    if (def.smoke) {
+      pos.y = game.skills.floorBelow(pos.clone().setY(pos.y + 0.5));
+      game.skills.createSteam(pos, false, { smoke: true, radius: def.radius, t: def.duration });
+      game.effects.burst(pos.clone().setY(pos.y + 0.3), { count: 18, color: '#9aa0a6', speed: 4, size: 0.06, life: 0.6 });
+      audio.skill('steam', game.player.position.distanceTo(pos));
+      return;
+    }
     const fx = game.effects;
     fx.explosion(pos.clone().setY(pos.y + 0.3), '#ffb35a', def.radius * 0.75);
     fx.burst(pos.clone().setY(pos.y + 0.2), { count: 26, color: '#ffcf7a', speed: 11, size: 0.05, life: 0.7 });
@@ -1177,6 +1184,21 @@ export class WeaponSystem {
     lead.userData.knee.rotation.x = 0.04;
     tuck.rotation.set(-0.35, 0.3, 0.2);
     tuck.userData.knee.rotation.x = -1.3 * a;
+  }
+
+  /** Titan E: arms turn into rough stone with glowing cracks */
+  setGolem(on) {
+    if (on && !this._sleeveBase) this._sleeveBase = { c: this.sleeve.color.clone(), e: this.sleeve.emissive.clone(), r: this.sleeve.roughness };
+    if (on) {
+      this.sleeve.color.set('#7a7068'); this.sleeve.emissive.set('#ff5a10'); this.sleeve.emissiveIntensity = 0.18;
+      this.sleeve.roughness = 1; this.sleeve.flatShading = true;
+      for (const a of [this.rightArm, this.leftArm, this.castArm, this.castArmL]) a.scale.setScalar(1.18);
+    } else if (this._sleeveBase) {
+      this.sleeve.color.copy(this._sleeveBase.c); this.sleeve.emissive.copy(this._sleeveBase.e); this.sleeve.emissiveIntensity = 1;
+      this.sleeve.roughness = this._sleeveBase.r; this.sleeve.flatShading = false;
+      for (const a of [this.rightArm, this.leftArm]) a.scale.setScalar(1);
+    }
+    this.sleeve.needsUpdate = true;
   }
 
   /** Make viewmodel see-through (Shadow's stealth). */

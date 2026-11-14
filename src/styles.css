@@ -239,6 +239,19 @@ input[type=range] { accent-color: #ff8f4a; width: 100%; }
 .ov-row .btn { flex: 1; }
 #result-body { font-size: 15px; line-height: 1.8; color: rgba(255,255,255,.85); }
 #result-body .coin { color: #9fe7ff; font-weight: 700; }
+table.kda { width: 100%; margin: 14px auto 4px; border-collapse: separate; border-spacing: 0 4px; font-size: 14px; }
+table.kda th { font-size: 12px; color: rgba(255,255,255,.55); font-weight: 700; padding: 0 10px; text-align: center; }
+table.kda th:first-child { text-align: left; }
+table.kda td { padding: 6px 10px; text-align: center; font-weight: 800; font-size: 16px; background: rgba(255,255,255,.05); }
+table.kda tbody.ally td { background: rgba(61,155,255,.16); }
+table.kda tbody.enemy td { background: rgba(255,77,94,.14); }
+table.kda tbody.enemy tr:first-child td { border-top: 10px solid transparent; background-clip: padding-box; }
+table.kda tr.me td { background: rgba(255,165,72,.28); }
+table.kda td:first-child { border-radius: 10px 0 0 10px; text-align: left; }
+table.kda td:last-child { border-radius: 0 10px 10px 0; }
+table.kda .kp { display: flex; align-items: center; gap: 10px; }
+table.kda .kp img { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; background: rgba(0,0,0,.3); }
+table.kda .kp small { display: block; font-size: 11px; color: rgba(255,255,255,.55); font-weight: 600; }
 
 /* weapon slot icons */
 #slots { gap: 8px; margin-top: 10px; }
@@ -523,13 +536,23 @@ body.touch-mode #crosshair { transform: translate(-50%, -50%) scale(.9); }
   .lead { display: none; }
 }
 
+/* ================= v1.3 menu theme cycle ================= */
+#menu-fade { position: fixed; inset: 0; z-index: 9; pointer-events: none; opacity: 0; transition: opacity .45s ease; background: #eaf4ff; }
+#menu-fade.on { opacity: 1; }
+#menu-fade.forest { background: #0e1f14; }
+#menu-fade.honey { background: #ffd58a; }
+#menu .swap { animation: titleSwap .9s ease; }
+@keyframes titleSwap { 0% { opacity: 0; transform: translateY(10px); filter: blur(6px); } 100% { opacity: 1; transform: none; filter: none; } }
+
 /* ================= v1.2 inferno / inker ================= */
 #steam-overlay { position: fixed; inset: 0; z-index: 4; pointer-events: none; opacity: 0; transition: opacity .4s;
   background: radial-gradient(ellipse at center, rgba(235,242,248,.9) 0%, rgba(225,234,242,.96) 60%, rgba(210,222,232,.98) 100%); }
 #steam-overlay.on { opacity: 1; }
+#steam-overlay.smoke { background: radial-gradient(ellipse at center, rgba(120,126,134,.94) 0%, rgba(100,106,114,.97) 60%, rgba(80,86,94,.99) 100%); }
 .skill.ink .sk-bar i { background: linear-gradient(90deg, #3b2bd8, #20d0ff); }
 .skill.ink.charging { box-shadow: 0 0 0 2px #5a4dff, 0 0 22px rgba(90,77,255,.8); }
 /* infinity rarity: animated cyan → pink */
 .ccard.infinity { border-color: transparent; background: linear-gradient(rgba(14,22,40,.85), rgba(14,22,40,.85)) padding-box, linear-gradient(120deg, #3dfff0, #ff3df2, #ffd36b, #3dfff0) border-box; background-size: 100% 100%, 300% 300%; animation: infBorder 4s linear infinite; }
 .ccard.infinity .csub { background: linear-gradient(90deg, #3dfff0, #ff3df2, #ffd36b); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 900; }
 @keyframes infBorder { to { background-position: 0 0, 300% 0; } }
+#result .ov-card:has(table.kda) { width: min(600px, 94vw); }

@@ -67,6 +67,8 @@ export class Player {
     this.vel.set(0, 0, 0);
     this.yaw = yaw;
     this.pitch = 0;
+    this.maxHp = 150; // Titan's extra max HP is lost on death
+    if (this.game.skills) { this.game.skills.titanStacks = 0; if (this.game.skills.golemT > 0) this.game.skills.endGolem(); }
     this.hp = this.maxHp;
     this.alive = true;
     this.glitchSlowT = this.weakT = this.blindT = this.shieldT = 0;

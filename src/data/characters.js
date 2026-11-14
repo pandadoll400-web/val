@@ -73,6 +73,13 @@ export const CHARACTERS = [
     e: { name: '잉크 대시', desc: '이동 방향으로 돌진하며 잉크를 남김 (아군 이동속도 +40%)', cd: 7 },
   },
   {
+    id: 'titan', name: '타이탄', title: '바위 거인', rarity: 'epic', price: 1400,
+    color: '#7d6f62', accent: '#ff8a2a',
+    desc: '산을 깎아 만든 듯한 거인. 버틸수록 강해지고, 분노하면 돌 골렘이 된다.',
+    q: { name: '거인의 체력', desc: '최대 체력 +20 · 체력 20 회복 (최대 3번 누적, 죽으면 초기화)', cd: 12 },
+    e: { name: '돌 골렘', desc: '8초간 돌 골렘으로 변신 — 주는 피해 1.6배', cd: 22 },
+  },
+  {
     id: 'glitch', name: '글리치', title: '오류의 해커', rarity: 'mythic', price: 5000,
     color: '#8a3dff', accent: '#39ff9e',
     desc: '현실의 코드를 비틀어 버리는 해커. 처치할수록 상대의 시스템을 망가뜨린다.',

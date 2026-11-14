@@ -207,6 +207,10 @@ class Sfx {
         this._noise(t, 0.3, { freq: 900, vol: 0.5 * v, sweepTo: 200 });
         this._tone(t, 0.15, { type: 'sine', from: 220, to: 90, vol: 0.3 * v });
         break;
+      case 'rock':
+        this._noise(t, 0.5, { freq: 400, vol: 0.55, sweepTo: 80 });
+        for (let i = 0; i < 4; i++) this._tone(t + i * 0.05, 0.12, { type: 'square', from: 90 + Math.random() * 60, to: 40, vol: 0.12 });
+        break;
       case 'throw':
         this._noise(t, 0.2, { type: 'bandpass', freq: 900, q: 1, vol: 0.25, sweepTo: 400 });
         break;

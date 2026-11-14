@@ -13,15 +13,17 @@ void main() {
 
 const skyFrag = /* glsl */ `
 uniform float uTime;
+uniform vec3 uHorizon, uWarm, uMid, uTop;
+uniform float uAurora, uStars;
 varying vec3 vDir;
 float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
 void main() {
   vec3 d = normalize(vDir);
   float h = d.y;
-  vec3 horizon = vec3(0.62, 0.70, 0.85);
-  vec3 warm    = vec3(0.98, 0.66, 0.52);
-  vec3 mid     = vec3(0.32, 0.38, 0.66);
-  vec3 top     = vec3(0.04, 0.07, 0.18);
+  vec3 horizon = uHorizon;
+  vec3 warm    = uWarm;
+  vec3 mid     = uMid;
+  vec3 top     = uTop;
   vec3 sunDir = normalize(vec3(0.25, 0.06, -1.0));
   float s = max(dot(d, sunDir), 0.0);
   vec3 col = mix(horizon, mid, smoothstep(0.02, 0.3, h));
@@ -39,32 +41,45 @@ void main() {
     a += band * rays;
   }
   vec3 aur = mix(vec3(0.15, 1.0, 0.65), vec3(0.45, 0.4, 1.0), smoothstep(0.4, 0.65, h));
-  col += aur * a * 0.32 * smoothstep(0.12, 0.35, h);
+  col += aur * a * 0.32 * smoothstep(0.12, 0.35, h) * uAurora;
 
   vec3 cell = floor(d * 260.0);
   float st = step(0.9975, hash(cell)) * smoothstep(0.25, 0.7, h);
-  col += vec3(st) * (0.6 + 0.4 * sin(uTime * 3.0 + hash(cell + 7.0) * 30.0));
+  col += vec3(st) * (0.6 + 0.4 * sin(uTime * 3.0 + hash(cell + 7.0) * 30.0)) * uStars;
 
   if (h < 0.0) col = mix(horizon, horizon * 0.8, smoothstep(0.0, -0.3, h));
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-export function makeSky() {
+/** set the sky colours of a theme (see world/themes.js) */
+export function applySkyTheme(mesh, theme) {
+  const u = mesh.material.uniforms, s = theme.sky;
+  u.uHorizon.value.set(s.horizon); u.uWarm.value.set(s.warm); u.uMid.value.set(s.mid); u.uTop.value.set(s.top);
+  u.uAurora.value = s.aurora; u.uStars.value = s.stars;
+}
+
+export function makeSky(theme = null) {
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { uTime: { value: 0 } },
+    uniforms: {
+      uTime: { value: 0 },
+      uHorizon: { value: new THREE.Color(0.62, 0.70, 0.85) }, uWarm: { value: new THREE.Color(0.98, 0.66, 0.52) },
+      uMid: { value: new THREE.Color(0.32, 0.38, 0.66) }, uTop: { value: new THREE.Color(0.04, 0.07, 0.18) },
+      uAurora: { value: 1 }, uStars: { value: 1 },
+    },
     vertexShader: skyVert, fragmentShader: skyFrag,
   });
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(1000, 48, 24), mat);
   mesh.frustumCulled = false;
   mesh.renderOrder = -10;
+  if (theme) applySkyTheme(mesh, theme);
   return mesh;
 }
 
-export function makeEnvironment(renderer) {
+export function makeEnvironment(renderer, theme = null) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const s = new THREE.Scene();
-  s.add(makeSky());
+  s.add(makeSky(theme));
   const tex = pmrem.fromScene(s, 0, 0.1, 2000).texture;
   pmrem.dispose();
   return tex;
@@ -113,7 +128,8 @@ export function createCliffGeometry(segL = 64, segH = 26) {
  * Fill cliff geometry. Cliff runs from z0 to z0 - len along -Z, at x = side * (baseX + offsets).
  * Offsets are always >= 0 so the wall never intrudes past baseX (keeps collision simple).
  */
-export function updateCliff(geo, { z0, len, side, baseX, height, seed = 1, notch = 0 }) {
+export function updateCliff(geo, { z0, len, side, baseX, height, seed = 1, notch = 0, colors = null }) {
+  const cDeep = colors ? new THREE.Color(colors[0]) : C_DEEP, cIce = colors ? new THREE.Color(colors[1]) : C_ICE, cSnow = colors ? new THREE.Color(colors[2]) : C_SNOW;
   const { segL, segH } = geo.userData;
   const pos = geo.attributes.position.array;
   const col = geo.attributes.color.array;
@@ -133,10 +149,10 @@ export function updateCliff(geo, { z0, len, side, baseX, height, seed = 1, notch
       pos[k + 1] = y;
       pos[k + 2] = z;
 
-      tmpC.copy(C_DEEP).lerp(C_ICE, THREE.MathUtils.smoothstep(n2 + t * 0.7, -0.4, 0.55));
+      tmpC.copy(cDeep).lerp(cIce, THREE.MathUtils.smoothstep(n2 + t * 0.7, -0.4, 0.55));
       const snow = THREE.MathUtils.clamp(
         THREE.MathUtils.smoothstep(t + n1 * 0.25, 0.62, 0.82) + (strata > 0.85 ? 0.35 : 0), 0, 1);
-      tmpC.lerp(C_SNOW, snow);
+      tmpC.lerp(cSnow, snow);
       col[k] = tmpC.r; col[k + 1] = tmpC.g; col[k + 2] = tmpC.b;
       k += 3;
     }
@@ -194,7 +210,8 @@ export function makeIceRock(rng, sx, sy, sz, mat = rockMat) {
 }
 
 /* ---------------- Snow particles ---------------- */
-export function makeSnow(count = 2500, range = 60) {
+export function makeSnow(count = 2500, range = 60, opts = {}) {
+  const { color = '#ffffff', size = 0.16, fall = 1.2, drift = 0.6, glow = false } = opts;
   const pos = new Float32Array(count * 3);
   const rng = mulberry32(42);
   for (let i = 0; i < count; i++) {
@@ -205,7 +222,8 @@ export function makeSnow(count = 2500, range = 60) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const mat = new THREE.PointsMaterial({
-    size: 0.16, map: makeGlowTexture(32), transparent: true, depthWrite: false, opacity: 0.9, color: '#ffffff',
+    size, map: makeGlowTexture(32), transparent: true, depthWrite: false, opacity: 0.9, color,
+    blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending,
   });
   const pts = new THREE.Points(geo, mat);
   pts.frustumCulled = false;
@@ -215,8 +233,9 @@ export function makeSnow(count = 2500, range = 60) {
     const a = geo.attributes.position.array;
     for (let i = 0; i < count; i++) {
       const k = i * 3;
-      a[k + 1] -= dt * (1.2 + (i % 7) * 0.15);
-      a[k] += Math.sin(t * 0.7 + i) * dt * 0.4 + dt * 0.6;
+      a[k + 1] -= dt * (fall + (i % 7) * 0.15 * fall) - (glow ? Math.sin(t * 1.3 + i * 0.7) * dt * 0.4 : 0);
+      a[k] += Math.sin(t * 0.7 + i) * dt * 0.4 * drift + dt * drift;
+      if (glow) a[k + 2] += Math.cos(t * 0.9 + i * 1.3) * dt * 0.3;
       // wrap around the center
       if (a[k + 1] < center.y - 8) a[k + 1] += 40;
       const dx = a[k] - center.x, dz = a[k + 2] - center.z;
