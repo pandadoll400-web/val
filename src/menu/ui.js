@@ -9,7 +9,7 @@ import { BUNDLES, skinsForWeapon, skinId } from '../data/skins.js';
 import { audio } from '../audio.js';
 
 const $ = (id) => document.getElementById(id);
-const PANELS = ['panel-mode', 'panel-duel', 'panel-chars', 'panel-weapons', 'panel-shop', 'panel-settings'];
+const PANELS = ['panel-mode', 'panel-chars', 'panel-weapons', 'panel-shop', 'panel-settings'];
 
 /** Main menu: Play (mode select), Characters, Weapons, Settings. */
 export class MenuUI {
@@ -23,7 +23,6 @@ export class MenuUI {
     this.openId = null;
 
     $('btn-play').onclick = () => this.toggle('panel-mode');
-    $('btn-duel').onclick = () => this.toggle('panel-duel');
     $('btn-chars').onclick = () => { this.viewChar = save.character; this.toggle('panel-chars'); };
     $('btn-weapons').onclick = () => { this.viewWeapon = save.loadout[this.viewCat]; this.toggle('panel-weapons'); };
     $('btn-settings').onclick = () => this.toggle('panel-settings');
@@ -35,7 +34,7 @@ export class MenuUI {
     this.root.querySelectorAll('.mode-card').forEach((card) => {
       card.onclick = () => {
         const mode = card.dataset.mode;
-        if (mode === 'multi') { this.open('panel-duel'); return; }
+        if (mode === 'multi') { this.onDuel?.(); return; }
         this.onPlay(mode);
       };
     });
@@ -99,7 +98,7 @@ export class MenuUI {
     const wn = (id) => `<b style="color:${RARITY[WEAPONS[id].rarity].color}">${WEAPONS[id].name}</b>`;
     $('loadout-chip').innerHTML = `캐릭터 <b>${c.name}</b> <span style="color:${RARITY[c.rarity].color}">(${RARITY[c.rarity].name})</span>
       · 무기 ${wn(lo.primary)} / ${wn(lo.secondary)} / ${wn(lo.sidearm)}
-      <div class="ver">v1.3 · 빌드 ${__BUILD__}</div>`;
+      <div class="ver">v1.4 · 빌드 ${__BUILD__}</div>`;
   }
 
   /* ---------- characters ---------- */

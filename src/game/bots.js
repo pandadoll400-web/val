@@ -3,6 +3,7 @@ import { makeSoldier } from './soldier.js';
 import { collideMove } from '../world/iceCanyon.js';
 import { damp, clamp } from '../util/noise.js';
 import { audio } from '../audio.js';
+import { getCharacter } from '../data/characters.js';
 
 const NAMES = ['아이스울프', '블리자드', '툰드라', '글래셔', '스노우폴', '폴라리스', '프로스트바이트', '아발란체',
   '서리발톱', '빙하병', '눈보라', '크레바스', '얼음송곳', '설원늑대', '북풍'];
@@ -23,11 +24,16 @@ let nextId = 1;
 
 /** Hostile AI soldier: patrols, spots the player, strafes and shoots in bursts. */
 export class AIBot {
-  constructor(game, pos, index, { passive = false } = {}) {
+  constructor(game, pos, index, { passive = false, net = null } = {}) {
     this.passive = passive; // training dummy: never moves or attacks, respawns
+    // online AI player (simulated by the room host): { uid, team, name, char }
+    this.uid = net?.uid || null;
+    this.team = net?.team || null;
+    this.shotSeq = 0;
+    this.tracerEnd = null;
     this.game = game;
     this.id = nextId++;
-    this.name = NAMES[index % NAMES.length];
+    this.name = net?.name || NAMES[index % NAMES.length];
     this.position = pos.clone();
     this.vel = new THREE.Vector3();
     this.yaw = Math.random() * Math.PI * 2;
@@ -36,7 +42,8 @@ export class AIBot {
     this.alive = true;
     this.onGround = true;
 
-    this.model = makeSoldier(passive ? '#d9823a' : COLORS[index % COLORS.length], passive ? '#ffd36b' : '#ff5b4a');
+    if (net) { const c = getCharacter(net.char); this.model = makeSoldier(c.color, c.accent, c.id); }
+    else this.model = makeSoldier(passive ? '#d9823a' : COLORS[index % COLORS.length], passive ? '#ffd36b' : '#ff5b4a');
     this.home = pos.clone();
     if (passive) this.yaw = Math.PI; // face the shooting booth (+Z)
     this.model.group.position.copy(pos);
@@ -71,7 +78,7 @@ export class AIBot {
   randomPoint() {
     for (let i = 0; i < 20; i++) {
       const p = new THREE.Vector3((Math.random() - 0.5) * 60, 0, -78 + Math.random() * 120);
-      if (!this.game.world.colliders.some((b) => p.x > b.min.x - 1 && p.x < b.max.x + 1 && p.z > b.min.z - 1 && p.z < b.max.z + 1 && b.max.y > 0.6)) return p;
+      if (!this.game.world.blockedAt(p.x, p.z, 1)) return p;
     }
     return new THREE.Vector3(0, 0, 0);
   }
@@ -89,7 +96,7 @@ export class AIBot {
     if (!this.alive) return { killed: false };
     this.hp -= dmg;
     this.flashT = 0.1;
-    if (!this.passive) this.alert(this.game.player.position);
+    if (!this.passive && !this.uid) this.alert(this.game.player.position);
     if (this.hp <= 0) {
       this.hp = 0;
       this.die(info);
@@ -129,9 +136,35 @@ export class AIBot {
     this.game.onEnemyKilled(this, info);
   }
 
+  /** who this bot fights: the player offline; online every alive enemy of its team (people + other AI) */
+  pickTarget() {
+    const game = this.game;
+    if (!this.uid) return game.player;
+    const cands = [];
+    if (game.player.alive && game.myTeam !== this.team) cands.push(game.player);
+    for (const r of Object.values(game.remotes)) if (r.alive && !r.gone && r.team !== this.team && r.model.group.visible) cands.push(r);
+    for (const b of game.bots) if (b !== this && b.alive && b.team !== this.team) cands.push(b);
+    if (!cands.length) return null;
+    this.retargetT = (this.retargetT || 0) - 1;
+    if (this.target && cands.includes(this.target) && this.retargetT > 0) return this.target;
+    this.retargetT = 40;
+    let best = null, bd = 1e9;
+    for (const c of cands) {
+      let d = c.position.distanceTo(this.position);
+      if (c.invisible) d += 60;
+      if (d < bd) { bd = d; best = c; }
+    }
+    return (this.target = best);
+  }
+
+  targetEye(t) {
+    if (t === this.game.player) return t.camera.position.clone();
+    return t.position.clone().setY(t.position.y + 1.5);
+  }
+
   shoot(player) {
     const muzzle = this.model.muzzle.getWorldPosition(new THREE.Vector3());
-    const target = player.position.clone().setY(player.position.y + player.aimHeight);
+    const target = player.position.clone().setY(player.position.y + (player.aimHeight ?? 1.2));
     const dist = muzzle.distanceTo(target);
     let chance = 0.42 - dist * 0.005;
     if (player.moving) chance -= 0.1;
@@ -144,13 +177,18 @@ export class AIBot {
     const hit = Math.random() < chance;
     const end = target.clone();
     if (hit) {
-      player.applyDamage(this.weakT > 0 ? 1 : 10 + Math.floor(Math.random() * 4), { killer: this.name, weapon: '소총', fromPos: this.position.clone() });
+      const dmg = this.weakT > 0 ? 1 : 10 + Math.floor(Math.random() * 4);
+      if (player === this.game.player) player.applyDamage(dmg, { killer: this.name, killerUid: this.uid, weapon: '소총', fromPos: this.position.clone() });
+      else if (player.isRemote) this.game.net?.sendBotHit(this, player.uid, dmg);
+      else player.applyDamage(dmg, { killerUid: this.uid, weapon: '소총', from: 'bot' });
     } else {
       const off = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.3, Math.random() - 0.5).multiplyScalar(1.2 + dist * 0.03);
       end.add(off);
       end.sub(muzzle).multiplyScalar(1.6).add(muzzle);
       if (dist < 25 && Math.random() < 0.3) audio.whiz();
     }
+    this.shotSeq++;
+    this.tracerEnd = end.clone();
     this.game.effects.tracer(muzzle, end, '#ff7a5a', 0.02, 180);
     this.game.effects.worldFlash(muzzle, 0.5);
     audio.shot('bot', dist);
@@ -174,7 +212,9 @@ export class AIBot {
       this.model.joints.torso.rotation.x = Math.sin(performance.now() * 0.002 + this.id) * 0.02;
       return;
     }
-    const game = this.game, player = game.player;
+    const game = this.game;
+    const player = this.pickTarget() || game.player;
+    const noTarget = !!this.uid && player === game.player && (!game.player.alive || game.myTeam === this.team);
     if (this.flashT > 0) {
       this.flashT -= dt;
       this.model.materials.body.emissive.set(this.flashT > 0 ? '#ff2a2a' : '#000000');
@@ -202,13 +242,13 @@ export class AIBot {
     this.losT -= dt;
     if (this.losT <= 0) {
       this.losT = 0.2 + Math.random() * 0.1;
-      const visible = player.alive && !player.invisible && dist < 70;
+      const visible = !noTarget && player.alive && !player.invisible && dist < 70;
       let see = false;
       if (visible) {
         const facing = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
         const inFov = facing.dot(toP.clone().setY(0).normalize()) > 0.2 || dist < 12 || this.state === 'hunt';
         see = (inFov && dist < 55) || (this.state === 'hunt' && dist < 70);
-        if (see) see = hasLOS(game.world, this.eye.clone(), player.camera.position);
+        if (see) see = hasLOS(game.world, this.eye.clone(), this.targetEye(player));
       }
       this.canSee = see;
       if (see) { this.lastKnown.copy(player.position); this.alert(); }
@@ -218,13 +258,13 @@ export class AIBot {
       this.alertT -= dt;
       if (this.alertT <= 0 && !game.huntAll) { this.state = 'patrol'; this.waypoint = this.randomPoint(); }
     }
-    if (game.huntAll && player.alive && !player.invisible) { this.state = 'hunt'; if (!this.canSee) this.lastKnown.copy(player.position); }
+    if ((game.huntAll || this.uid) && !noTarget && player.alive && !player.invisible) { this.state = 'hunt'; if (!this.canSee) this.lastKnown.copy(player.position); }
 
     // movement intent
     let speed = 3.2;
     const move = new THREE.Vector3();
     let faceTarget = null;
-    if (this.state === 'hunt' && player.alive) {
+    if (this.state === 'hunt' && player.alive && !noTarget) {
       if (this.canSee) {
         faceTarget = player.position;
         const dir = toP.clone().setY(0).normalize();
@@ -258,6 +298,7 @@ export class AIBot {
     }
     if (this.slowT > 0) speed *= 0.5;
     if (this.glitchSlowT > 0) speed /= 3;
+    if (game.world.inWater(this.position.x, this.position.z, this.position.y)) speed *= 0.6;
     if (move.lengthSq() > 0) move.normalize().multiplyScalar(speed);
 
     // stuck → sidestep
@@ -287,7 +328,12 @@ export class AIBot {
     g.position.copy(this.position);
     g.rotation.y = this.yaw;
     const hs = Math.hypot(this.vel.x, this.vel.z);
+    const ph0 = this.walkPhase;
     this.walkPhase += dt * hs * 2.2;
+    if (hs > 0.8 && this.onGround && Math.floor(this.walkPhase / Math.PI) !== Math.floor(ph0 / Math.PI)) {
+      const cam = this.game.camera.position, d = cam.distanceTo(this.position);
+      if (d < 32) audio.step(this.game.world.surfaceAt(this.position.x, this.position.z, this.position.y), d, hs > 4 ? 1 : 0.7);
+    }
     const sw = Math.sin(this.walkPhase) * Math.min(1, hs / 3) * 0.6;
     this.model.legs[0].rotation.x = sw;
     this.model.legs[1].rotation.x = -sw;

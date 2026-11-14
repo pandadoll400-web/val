@@ -104,6 +104,27 @@ class Sfx {
     this._tone(t, 0.08, { type: 'triangle', from: 1500, vol: 0.25 });
     this._tone(t + 0.08, 0.14, { type: 'triangle', from: 2100, vol: 0.25 });
   }
+  /** footstep on a surface (snow / grass / sand / wood / stone / ice / water); dist = metres from me */
+  step(surface = 'snow', dist = 0, vol = 1) {
+    if (!this.ok) return;
+    const v = vol / (1 + dist * 0.12);
+    if (v < 0.03) return;
+    const t = this.now;
+    const S = {
+      snow:  [{ type: 'bandpass', freq: 2400, q: 0.9, vol: 0.22, dur: 0.11 }, { type: 'highpass', freq: 5000, vol: 0.08, dur: 0.05 }],
+      grass: [{ type: 'bandpass', freq: 1500, q: 0.6, vol: 0.18, dur: 0.09 }, { type: 'highpass', freq: 3800, vol: 0.06, dur: 0.06 }],
+      sand:  [{ type: 'bandpass', freq: 3200, q: 0.5, vol: 0.18, dur: 0.14 }],
+      wood:  [{ type: 'lowpass', freq: 700, vol: 0.32, dur: 0.07 }, { type: 'bandpass', freq: 1800, q: 3, vol: 0.12, dur: 0.04 }],
+      stone: [{ type: 'lowpass', freq: 1200, vol: 0.28, dur: 0.05 }, { type: 'highpass', freq: 4000, vol: 0.08, dur: 0.03 }],
+      ice:   [{ type: 'bandpass', freq: 3000, q: 4, vol: 0.18, dur: 0.06 }, { type: 'lowpass', freq: 600, vol: 0.18, dur: 0.05 }],
+      water: [{ type: 'bandpass', freq: 900, q: 0.8, vol: 0.3, dur: 0.22, sweepTo: 2400 }, { type: 'highpass', freq: 3000, vol: 0.1, dur: 0.15 }],
+    }[surface] || [{ type: 'lowpass', freq: 1000, vol: 0.25, dur: 0.07 }];
+    for (const s of S) this._noise(t, s.dur, { type: s.type, freq: dist > 15 ? s.freq * 0.6 : s.freq, q: s.q || 0.7, vol: s.vol * v, sweepTo: s.sweepTo, attack: 0.004 });
+    if (surface !== 'water' && surface !== 'sand') this._tone(t, 0.06, { from: 110, to: 60, vol: 0.12 * v });
+  }
+
+  land(surface = 'snow') { this.step(surface, 0, 1.8); }
+
   hurt() { if (this.ok) this._noise(this.now, 0.2, { freq: 600, vol: 0.4 }); }
   whiz() { if (this.ok) this._noise(this.now, 0.12, { type: 'bandpass', freq: 3000, q: 2, vol: 0.12, sweepTo: 1200 }); }
 

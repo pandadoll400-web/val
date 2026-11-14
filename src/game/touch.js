@@ -1,5 +1,9 @@
 // Touch controls for phones / tablets: left stick = move, drag right side = look, on-screen buttons.
 // Everything is fed into the same inputs the keyboard and mouse use (game.keys, weapons.trigger, skills).
+import * as THREE from 'three';
+
+const _ray = new THREE.Raycaster();
+const _center = new THREE.Vector2(0, 0);
 
 export const IS_TOUCH = typeof window !== 'undefined' &&
   ((window.matchMedia && matchMedia('(pointer: coarse)').matches) || (navigator.maxTouchPoints > 0 && 'ontouchstart' in window));
@@ -24,7 +28,10 @@ export class TouchControls {
       <button class="t-btn t-q" data-a="q">Q</button>
       <button class="t-btn t-e" data-a="e">E</button>
       <button class="t-btn t-nade" data-a="nade">💣</button>
-      <button class="t-btn t-pause" data-a="pause">❚❚</button>`;
+      <button class="t-btn t-pause" data-a="pause">❚❚</button>
+      <button class="t-btn t-auto" data-a="auto">AUTO</button>`;
+    this.auto = false;
+    this.fireHeld = false;
     document.body.appendChild(this.root);
     document.body.classList.add('touch-mode');
     this.stickEl = this.root.querySelector('.t-stick');
@@ -79,9 +86,16 @@ export class TouchControls {
     btn.classList.add('on');
     btn._touch = t.identifier;
     if (a === 'pause') { g.setPaused(!g.paused); return; }
+    if (a === 'auto') {
+      this.auto = !this.auto;
+      btn.classList.toggle('latched', this.auto);
+      g.hud.msg(this.auto ? '자동 발사 켜짐 — 조준선에 적이 닿으면 발사' : '자동 발사 꺼짐', 1.4);
+      if (!this.auto && !this.fireHeld) w.trigger = false;
+      return;
+    }
     if (!this.canAct()) return;
     if (a === 'fire') {
-      w.trigger = true; w.triggerUsed = false;
+      w.trigger = true; w.triggerUsed = false; this.fireHeld = true;
       this.looks.set(t.identifier, { x: t.clientX, y: t.clientY, fire: true }); // dragging the fire button also aims
     } else if (a === 'ads') { w.adsHeld = !w.adsHeld; btn.classList.toggle('latched', w.adsHeld); }
     else if (a === 'jump') g.keys.Space = true;
@@ -95,7 +109,7 @@ export class TouchControls {
   release(btn) {
     const g = this.game, w = g.weapons, a = btn.dataset.a;
     btn.classList.remove('on');
-    if (a === 'fire') w.trigger = false;
+    if (a === 'fire') { w.trigger = false; this.fireHeld = false; }
     else if (a === 'jump') g.keys.Space = false;
     else if (a === 'crouch') g.keys.KeyC = false;
     else if (a === 'e') g.skills.release('e');
@@ -143,8 +157,30 @@ export class TouchControls {
   /** keep button states in sync (ADS latch resets on weapon switch / death) */
   update() {
     const w = this.game.weapons;
+    if (this.auto) this.autoFire();
     this.root.querySelector('.t-ads').classList.toggle('latched', !!w.adsHeld);
     this.root.classList.toggle('dead', !this.game.player.alive || this.game.over);
+  }
+
+  /** AUTO: pull the trigger only while an enemy is under the crosshair (nothing solid in between) */
+  autoFire() {
+    const g = this.game, w = g.weapons;
+    if (this.fireHeld) return;
+    const kind = w.def.kind;
+    if (!this.canAct() || kind !== 'gun' || w.reloading) { if (this._autoOn) { w.trigger = false; this._autoOn = false; } return; }
+    _ray.setFromCamera(_center, g.camera);
+    _ray.far = 200;
+    const enemies = g.enemyMeshes();
+    let on = false;
+    if (enemies.length) {
+      const hit = _ray.intersectObjects(g.world.solids.concat(enemies), false)[0];
+      const e = hit?.object.userData.enemy;
+      on = !!e && e.alive !== false && !e.invisible;
+    }
+    if (on && !this._autoOn) { w.trigger = true; w.triggerUsed = false; }
+    else if (!on && this._autoOn) w.trigger = false;
+    else if (on && !w.def.auto && w.triggerUsed && w.slot.mag > 0) w.triggerUsed = false; // semi-auto: keep tapping
+    this._autoOn = on;
   }
 
   dispose() {

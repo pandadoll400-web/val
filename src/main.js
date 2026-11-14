@@ -73,7 +73,7 @@ window.__room = room;
 const menuStage = new CharStage();
 
 // menu background cycles through the three maps every 15 s; the title follows
-const MENU_THEMES = ['ice', 'forest', 'honey'];
+const MENU_THEMES = ['ice', 'forest', 'honey', 'lake', 'desert'];
 let menuThemeI = 0, menuThemeT = 0, fadeT = -1;
 const fadeEl = document.createElement('div');
 fadeEl.id = 'menu-fade';
@@ -88,7 +88,7 @@ function applyMenuTitle(id) {
 }
 function updateMenuTheme(dt) {
   menuThemeT += dt;
-  if (fadeT < 0 && menuThemeT >= 15) { fadeT = 0; fadeEl.className = 'on ' + MENU_THEMES[(menuThemeI + 1) % 3]; }
+  if (fadeT < 0 && menuThemeT >= 15) { fadeT = 0; fadeEl.className = 'on ' + MENU_THEMES[(menuThemeI + 1) % MENU_THEMES.length]; }
   if (fadeT >= 0) {
     fadeT += dt;
     if (fadeT >= 0.45 && menuThemeT >= 15) {
@@ -101,7 +101,7 @@ function updateMenuTheme(dt) {
     if (fadeT >= 1.0) fadeT = -1;
   }
 }
-window.__menuTheme = (i) => { menuThemeT = 15; menuThemeI = (i + 2) % 3; }; // test hook: jump to theme i
+window.__menuTheme = (i) => { menuThemeT = 15; menuThemeI = (i + MENU_THEMES.length - 1) % MENU_THEMES.length; }; // test hook: jump to theme i
 
 const clock = new THREE.Clock();
 let frame = 0;

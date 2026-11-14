@@ -12,7 +12,7 @@ import { audio } from '../audio.js';
 import { RemotePlayer } from './remotePlayer.js';
 import { IS_TOUCH, TouchControls } from './touch.js';
 import { serverNow } from '../net/firebase.js';
-import { MODE_NAMES } from '../net/room.js';
+import { MODE_NAMES, ROUND_TIME, OVERTIME } from '../net/room.js';
 import { getTheme, randomMap } from '../world/themes.js';
 import { getPortrait } from '../menu/ui.js';
 
@@ -31,6 +31,9 @@ export class Game {
     this.remotes = {};
     this.score = { A: 0, B: 0 };
     this.startAt = net ? net.meta.startAt : 0;
+    this.roundN = 0;
+    this.roundStart = this.startAt;
+    this.resetAt = 0;
     this.respawnAt = 0;
     this.deaths = 0;
     this.assists = 0;
@@ -65,7 +68,12 @@ export class Game {
     this.hud = new HUD(this);
     this.touch = IS_TOUCH ? new TouchControls(this) : null;
 
-    this.bots = net ? [] : mode === 'training'
+    this.bots = net ? net.myBots.map((uid, i) => {
+      const pr = net.players[uid], sp = this.teamSpawn(pr.team, pr.slot);
+      const b = new AIBot(this, sp.pos, i, { net: { uid, team: pr.team, name: pr.name, char: pr.char } });
+      b.yaw = sp.yaw; b.slot = pr.slot;
+      return b;
+    }) : mode === 'training'
       ? this.world.targetSpots.map((p, i) => new AIBot(this, p, i, { passive: true }))
       : this.world.enemySpawns(ENEMY_COUNT).map((p, i) => new AIBot(this, p, i));
     this.totalEnemies = this.bots.length;
@@ -82,7 +90,7 @@ export class Game {
 
   /** everything my bullets and skills can hurt: AI bots + enemy players (team mates are never hit) */
   hostiles() {
-    const out = this.bots.filter((b) => b.alive);
+    const out = this.bots.filter((b) => b.alive && (!this.net || b.team !== this.myTeam));
     for (const r of Object.values(this.remotes)) if (r.enemy && r.alive && !r.gone) out.push(r);
     return out;
   }
@@ -100,7 +108,7 @@ export class Game {
     $('hud').classList.remove('hidden');
     $('result').classList.add('hidden');
     audio.init();
-    if (this.net) this.hud.msg(`${this.mapName} · ${MODE_NAMES[this.mode]} — ${this.net.target}킬을 먼저 달성하는 팀이 승리!`, 3.5);
+    if (this.net) this.hud.msg(`${this.mapName} · ${MODE_NAMES[this.mode]} — 처치하면 라운드 승리 · ${this.net.target}점 먼저!`, 3.5);
     else this.hud.msg(this.mode === 'training' ? `${this.mapName} 훈련장 — 표적은 움직이거나 공격하지 않습니다 · Esc로 나가기` : `${this.mapName} — 적 ${this.totalEnemies}명을 모두 처치하라!`, 3.5);
     this.lock();
   }
@@ -112,6 +120,7 @@ export class Game {
   }
 
   dispose() {
+    this.disposed = true;
     this.unbindInput();
     document.exitPointerLock?.();
     this.net?.dispose();
@@ -144,6 +153,7 @@ export class Game {
   }
 
   onEnemyKilled(bot, info) {
+    if (this.net) { this.onNetBotKilled(bot, info); return; }
     this.kills++;
     if (info.from === 'player' || info.from === undefined) this.skills.onKill();
     // skin kill effect left at the spot where the enemy fell
@@ -206,11 +216,18 @@ export class Game {
   }
 
   onPlayerKilled(info) {
+    // Bloom: a planted life tree brings me back instead
+    if (this.skills.tryBloomRevive()) {
+      $('death').classList.remove('hidden');
+      $('death-by').textContent = `${info.killer || '적'}에게 쓰러졌지만…`;
+      $('death-timer').textContent = '꽃나무에서 되살아나는 중';
+      return;
+    }
     if (this.net) {
       this.hud.killfeed(`${info.killer || '상대'}<span class="w">${info.weapon || ''}</span><span class="me">${this.myName}</span>`);
       $('death').classList.remove('hidden');
       $('death-by').textContent = `${info.killer || '상대'}에게 처치당했습니다`;
-      this.respawnAt = this.time + 3;
+      $('death-timer').textContent = '라운드 종료 — 곧 모두 시작 위치에서 다시 시작합니다';
       this.deaths++;
       this.net.pushStats(this.kills, this.deaths, this.assists);
       this.skills.cancelCharge();
@@ -351,11 +368,7 @@ export class Game {
       this.hud.msg(left > 0 ? `${left}` : '', 0.3);
     } else if (this.net && this._wasFrozen) this.hud.msg('시작!', 1);
     this._wasFrozen = frozen;
-    if (this.net && !this.player.alive && this.respawnAt && !this.over) {
-      const left = this.respawnAt - this.time;
-      $('death-timer').textContent = left > 0 ? `${Math.ceil(left)}초 후 부활` : '';
-      if (left <= 0) this.respawnPlayer();
-    }
+    if (this.net && !this.over) this.updateRound();
     this.player.update(dt, this.over || this.paused || frozen ? {} : this.keys);
     if (this.player.sliding && Math.random() < 0.6) {
       const p = this.player.position;
@@ -368,7 +381,7 @@ export class Game {
     }
     this.weapons.update(dt);
     this.skills.update(dt);
-    for (const b of this.bots) b.update(dt);
+    if (!frozen) for (const b of this.bots) b.update(dt);
     for (const r of Object.values(this.remotes)) r.update(dt);
     this.net?.update(dt);
     // players that never showed up (or vanished without a clean exit) count as gone after 10 s
@@ -384,12 +397,83 @@ export class Game {
   }
 
   /* ================= online match (duel / duo / squad) ================= */
-  get frozen() { return !!this.net && serverNow() < this.startAt; }
+  get frozen() { return !!this.net && (serverNow() < this.roundStart || this.resetAt > 0); }
+
+  /** seconds left in the round (overtime: negative phase handled by the HUD) */
+  roundClock() {
+    const t = (serverNow() - this.roundStart) / 1000;
+    if (t < 0) return { left: ROUND_TIME, ot: false, pre: true };
+    if (t < ROUND_TIME) return { left: ROUND_TIME - t, ot: false };
+    return { left: Math.max(0, ROUND_TIME + OVERTIME - t), ot: true };
+  }
+
+  /** round timer: 1:30 + 30 s overtime; then the side with more health takes the round */
+  updateRound() {
+    if (this.resetAt && this.time >= this.resetAt) { this.resetAt = 0; this.resetRound(); }
+    if (this.frozen) return;
+    const c = this.roundClock();
+    if (c.ot && !this._otShown) { this._otShown = true; this.hud.msg('연장전! 30초 안에 결판을 내세요', 2.2); }
+    if (c.ot && c.left <= 0 && this._decided !== this.roundN) {
+      // the person with the smallest id decides (everyone sees the same health numbers)
+      const judge = this.net.humans.filter((u) => u === this.net.uid || this.net.present.has(u)).sort()[0];
+      if (judge !== this.net.uid) return;
+      this._decided = this.roundN;
+      const hp = {};
+      const add = (team, v) => { hp[team] = (hp[team] || 0) + Math.max(0, v); };
+      add(this.myTeam, this.player.alive ? this.player.hp : 0);
+      for (const r of Object.values(this.remotes)) if (!r.gone) add(r.team, r.alive ? r.hp : 0);
+      for (const b of this.bots) add(b.team, b.alive ? b.hp : 0);
+      const sorted = Object.entries(hp).sort((a, b) => b[1] - a[1]);
+      const win = sorted.length > 1 && sorted[0][1] > sorted[1][1] ? sorted[0][0] : null;
+      this.net.winRound(win, { reason: win ? 'hp' : 'draw' });
+    }
+  }
+
+  /** a new round from the network: freeze, then everybody back to the start positions */
+  onNetRound(r) {
+    this.score = { ...(r.score || {}) };
+    if (r.n === this.roundN) { this.roundStart = r.startAt; return; }
+    this.roundN = r.n;
+    this.roundStart = r.startAt;
+    this._otShown = false;
+    if (this.over) return;
+    const L = r.last || {};
+    const mine = L.team && L.team === this.myTeam;
+    const txt = L.reason === 'kill' ? `${L.killer} → ${L.victim} 처치`
+      : L.reason === 'hp' ? '시간 종료 — 체력이 더 많은 쪽이 승리' : '시간 종료 — 무승부 (점수 없음)';
+    if (!r.over) this.hud.msg(`${L.team ? (mine ? '라운드 승리!' : '라운드 패배') : '무승부'} · ${txt}`, 2.2);
+    this.weapons.trigger = false;
+    this.resetAt = this.time + 1.3;
+  }
+
+  resetRound() {
+    if (this.over) return;
+    this.respawnPlayer();
+    for (const b of this.bots) {
+      const sp = this.teamSpawn(b.team, b.slot);
+      b.home.copy(sp.pos);
+      b.yaw = sp.yaw;
+      b.slowT = b.stunT = b.glitchSlowT = b.weakT = b.blindT = 0;
+      b.state = 'hunt'; b.canSee = false; b.seenT = 0; b.target = null;
+      b.vel.set(0, 0, 0);
+      b.model.group.rotation.set(0, b.yaw, 0);
+      b.respawn();
+    }
+    this.skills.onRoundReset?.();
+  }
+
+  /** one of the AI players I simulate died */
+  onNetBotKilled(bot, info) {
+    const killerUid = info.killerUid || (info.from === 'player' || !info.from ? this.net.uid : '');
+    bot.d = (bot.d || 0) + 1;
+    this.net.pushStatsFor(bot.uid, bot.k || 0, bot.d, 0);
+    if (killerUid === this.net.uid && info.skin) this.effects.killFx(info.skin, bot.position.clone());
+    this.net.reportDeath(killerUid, info.weapon, info.headshot, bot.uid);
+  }
 
   /** open floor spot near (x, z) — same result on every client (world is deterministic) */
   freeSpot(x, z) {
-    const blocked = (px, pz) => this.world.colliders.some((b) => b.max.y > 0.3 && b.max.y < 90 &&
-      px > b.min.x - 0.8 && px < b.max.x + 0.8 && pz > b.min.z - 0.8 && pz < b.max.z + 0.8);
+    const blocked = (px, pz) => this.world.blockedAt(px, pz, 0.8) || this.world.inWater(px, pz);
     for (let r = 0; r < 14; r += 0.75) {
       for (let a = 0; a < 12; a++) {
         const px = x + Math.cos((a / 12) * Math.PI * 2) * r, pz = z + Math.sin((a / 12) * Math.PI * 2) * r;
@@ -400,12 +484,14 @@ export class Game {
     return new THREE.Vector3(x, 0, z);
   }
 
-  /** team A starts in the south, team B in the north; slot spreads team mates sideways */
+  /** each map defines the start of team A (south), B (north), C (east, free-for-all); slot spreads team mates */
   teamSpawn(team, slot = 0) {
-    const off = [0, 2.6, -2.6, 5.2, -5.2][slot % 5] + (this.player.alive ? 0 : (Math.random() - 0.5) * 6);
-    return team === 'A'
-      ? { pos: this.freeSpot(off, 76), yaw: 0 }
-      : { pos: this.freeSpot(-off, -72), yaw: Math.PI };
+    const S = this.world.teamSpawns, sp = S[team] || (team === 'D' ? [-S.C[0], -S.C[1], -S.C[2]] : S.A);
+    const off = [0, 2.6, -2.6, 5.2, -5.2][slot % 5];
+    const yaw = sp[2];
+    // sideways = perpendicular to the facing direction
+    const sx = Math.cos(yaw), sz = -Math.sin(yaw);
+    return { pos: this.freeSpot(sp[0] + sx * off, sp[1] + sz * off), yaw };
   }
 
   respawnPlayer() {
@@ -415,6 +501,7 @@ export class Game {
     this.skills.cancelCharge();
     if (this.skills.invisT > 0) this.skills.endInvis();
     this.respawnAt = 0;
+    this.player.hp = this.player.maxHp;
     $('death').classList.add('hidden');
     this.effects.puff(sp.pos.clone().setY(1), '#bfe9ff', 1.6, 0.5, 0.6);
   }
@@ -431,9 +518,11 @@ export class Game {
     if (!this.player.alive) return;
     if (v.kind === 'slow' || v.kind === 'stun') this.player.slowT = Math.max(this.player.slowT, v.dur || 1);
     else if (v.kind === 'glitch') this.player.applyGlitch(v.dur || 1);
+    else if (v.kind === 'bloom') this.skills.applyBloomSeed(v.dur | 0);
   }
 
   onNetFeed(v) {
+    this.net.creditBot(v.killer);
     const mine = v.killer === this.net.uid;
     const name = (uid, n) => (uid === this.net.uid ? `<span class="me">${n}</span>` : n);
     this.hud.killfeed(`${name(v.killer, v.killerName)}<span class="w">${v.weapon}${v.head ? ' <span class="hs">◎ 헤드샷</span>' : ''}</span>${name(v.victim, v.victimName)}`);
@@ -457,7 +546,6 @@ export class Game {
     if (rp) {
       const skin = this.weapons.slot.skin;
       if (skin) this.effects.killFx(skin, rp.position.clone());
-      this.spawnAmmo(rp.position);
     }
   }
 
@@ -481,6 +569,8 @@ export class Game {
     else if (d.k === 'laser') s.remoteLaser(d);
     else if (d.k === 'steam') s.createSteam(V(d), true, d.o || {});
     else if (d.k === 'ink') s.createInk(V(d), { ...d.o, visual: true });
+    else if (d.k === 'bloom') s.remoteTree(d.from || 'x', d);
+    else if (d.k === 'bloomEnd') s.remoteTree(d.from || 'x', null);
   }
 
   onPlayerLeft(uid) {
@@ -491,7 +581,7 @@ export class Game {
     rp.model.group.visible = false;
     this.hud.msg(`${rp.name} 님이 나갔습니다`, 2.5);
     // nobody left on the other team → we win
-    const enemiesLeft = Object.values(this.remotes).some((r) => r.enemy && !r.gone);
+    const enemiesLeft = Object.values(this.remotes).some((r) => r.enemy && !r.gone) || this.bots.some((b) => b.team !== this.myTeam);
     if (!enemiesLeft && !this.over) this.net.endMatch({ winner: this.myTeam, reason: 'left' });
   }
 
@@ -506,10 +596,10 @@ export class Game {
         <td class="kp">${face ? `<img src="${face}" alt="">` : ''}<span>${r.s.k === best && best > 0 ? '★ ' : ''}${r.p.name}<small>${c.name}</small></span></td>
         <td>${r.s.k}</td><td>${r.s.d}</td><td>${r.s.a}</td></tr>`;
     }).join('');
-    const my = this.myTeam, other = my === 'A' ? 'B' : 'A';
+    const my = this.myTeam, others = [...new Set(rows.map((r) => r.p.team))].filter((t) => t !== my).sort();
     return `<table class="kda">
       <thead><tr><th>플레이어</th><th>킬</th><th>데스</th><th>어시</th></tr></thead>
-      <tbody class="ally">${team(my)}</tbody><tbody class="enemy">${team(other)}</tbody></table>`;
+      <tbody class="ally">${team(my)}</tbody>${others.map((t) => `<tbody class="enemy">${team(t)}</tbody>`).join('')}</table>`;
   }
 
   onNetStats() {
@@ -538,10 +628,11 @@ export class Game {
     $('pause').classList.add('hidden');
     $('result-title').textContent = win ? '승리!' : '패배';
     $('result-title').style.color = win ? '#7dffb0' : '#ff5a64';
-    const s = this.score || {}, my = this.myTeam, other = my === 'A' ? 'B' : 'A';
+    const s = this.score || {}, my = this.myTeam;
+    const otherScores = Object.keys(s).filter((t) => t !== my).sort().map((t) => s[t] || 0).join(' : ');
     $('result-body').innerHTML = `
-      ${result.reason === 'left' ? (win ? '상대가 모두 나가서 승리했습니다.' : '경기가 종료되었습니다.') : win ? '상대를 제압했습니다!' : '상대 팀이 먼저 목표 처치 수에 도달했습니다.'}<br>
-      점수 <b>${s[my] || 0} : ${s[other] || 0}</b><br>
+      ${result.reason === 'left' ? (win ? '상대가 모두 나가서 승리했습니다.' : '경기가 종료되었습니다.') : win ? `${this.net.target}점을 먼저 따냈습니다!` : `상대가 먼저 ${this.net.target}점을 따냈습니다.`}<br>
+      점수 <b>${s[my] || 0} : ${otherScores || 0}</b><br>
       획득 코인 <span class="coin">◆ ${this.coinsEarned.toLocaleString()}</span>
       ${this.statsTable()}`;
     $('result').classList.remove('hidden');

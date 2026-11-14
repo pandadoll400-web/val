@@ -3,15 +3,39 @@ import {
   myUid, serverNow, watchServerOffset, isPermissionError, serverTimestamp,
 } from './firebase.js';
 import { save } from '../save.js';
+import { CHARACTERS } from '../data/characters.js';
+import { randomMap } from '../world/themes.js';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no O/0/I/1
 const randomCode = () => Array.from({ length: 5 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
 
-/** players per team for each online mode */
-export const TEAM_SIZE = { duel: 1, duo: 2 };
-/** team kills needed to win */
-export const WIN_KILLS = { duel: 5, duo: 10 };
-export const MODE_NAMES = { duel: '듀얼 1대1', duo: '듀오 2대2' };
+/** players per team for each online mode (ffa: 3 teams of 1) */
+export const TEAM_SIZE = { duel: 1, ffa: 1, team: 2, duo: 2 };
+/** room slots (people + AI) per mode */
+export const ROOM_SLOTS = { duel: 2, ffa: 3, team: 4, duo: 2 };
+/** round wins needed to win the match (one kill = one round) */
+export const WIN_KILLS = { duel: 5, ffa: 5, team: 5, duo: 5 };
+export const MODE_NAMES = { duel: '듀얼 1대1', ffa: '개인전 1대1대1', team: '팀전 2대2', duo: '듀오 2대2 매칭' };
+export const ROUND_TIME = 90, OVERTIME = 30; // seconds
+const MAX_ROOM = 4;
+const BOT_NAMES = ['AI 블리자드', 'AI 툰드라', 'AI 글래셔', 'AI 폴라리스', 'AI 아발란체', 'AI 서리발톱', 'AI 눈보라', 'AI 북풍'];
+
+/** the slot list of a room: people (by join time) then AI bots, each with a team */
+export function roomSlots(players, bots, mode, teams = {}) {
+  const list = Object.entries(players || {}).sort((a, b) => (a[1].joined || 0) - (b[1].joined || 0)).map(([id, p]) => ({ id, ...p, bot: false }))
+    .concat(Object.entries(bots || {}).sort((a, b) => (a[1].added || 0) - (b[1].added || 0)).map(([id, b]) => ({ id, ...b, bot: true })));
+  const letters = ['A', 'B', 'C', 'D'];
+  if (mode === 'team') {
+    const n = { A: 0, B: 0 };
+    for (const s of list) {
+      let t = teams[s.id];
+      if (t !== 'A' && t !== 'B' || n[t] >= 2) t = n.A <= n.B ? 'A' : 'B';
+      if (n[t] >= 2) t = t === 'A' ? 'B' : 'A';
+      s.team = t; n[t]++;
+    }
+  } else list.forEach((s, i) => { s.team = letters[i] || 'D'; });
+  return list;
+}
 
 export function myProfile() {
   const skins = {};
@@ -47,6 +71,8 @@ export class RoomClient {
   get friendUid() { return Object.keys(this.players).find((id) => id !== this.uid) || null; }
   get friend() { const f = this.friendUid; return f ? this.players[f] : null; }
   get size() { return Object.keys(this.players).length; }
+  get bots() { return this.meta?.bots || {}; }
+  get slots() { return roomSlots(this.players, this.bots, this.meta?.mode, this.meta?.teams || {}); }
   r(path = '') { return ref(getDb(), `rooms/${this.code}${path ? '/' + path : ''}`); }
 
   async create() {
@@ -74,12 +100,12 @@ export class RoomClient {
     let full = false;
     const res = await runTransaction(ref(getDb(), `rooms/${code}/players`), (cur) => {
       cur = cur || {};
-      if (!cur[this.uid] && Object.keys(cur).length >= 2) { full = true; return undefined; }
+      if (!cur[this.uid] && Object.keys(cur).length >= MAX_ROOM) { full = true; return undefined; }
       full = false;
       cur[this.uid] = myProfile();
       return cur;
     }, { applyLocally: false });
-    if (!res.committed) throw fail(full ? '방이 가득 찼습니다 (최대 2명)' : '참가하지 못했습니다');
+    if (!res.committed) throw fail(full ? '방이 가득 찼습니다 (최대 4명)' : '참가하지 못했습니다');
     this.code = code;
     await this.enter(true);
     return code;
@@ -110,20 +136,61 @@ export class RoomClient {
   }
 
   async refreshProfile() { if (this.code) await set(this.r(`players/${this.uid}`), myProfile()); }
-  async setMode(mode) { if (this.isHost && this.meta?.state === 'lobby') await update(this.r('meta'), { mode }); }
+  async setMode(mode) {
+    if (!this.isHost || this.meta?.state !== 'lobby') return;
+    // AI bots that no longer fit in the new mode are removed
+    const bots = { ...this.bots }, room = ROOM_SLOTS[mode] - this.size;
+    const keep = mode === 'duo' ? 0 : Math.max(0, room);
+    Object.keys(bots).slice(keep).forEach((k) => { bots[k] = null; });
+    await update(this.r('meta'), { mode, bots: Object.keys(bots).length ? bots : null });
+  }
+
+  /** host: put an AI player into an empty slot */
+  async addBot(team) {
+    if (!this.isHost || this.meta?.state !== 'lobby') return;
+    const mode = this.meta.mode;
+    if (mode === 'duo') throw fail('매칭 모드에는 AI를 넣을 수 없습니다');
+    if (this.slots.length >= ROOM_SLOTS[mode]) throw fail('빈자리가 없습니다');
+    const used = new Set(Object.values(this.bots).map((b) => b.name));
+    const name = BOT_NAMES.find((n) => !used.has(n)) || 'AI';
+    const chars = CHARACTERS.map((c) => c.id);
+    const id = 'bot_' + Math.random().toString(36).slice(2, 8);
+    await update(this.r('meta'), { [`bots/${id}`]: { name, char: chars[Math.floor(Math.random() * chars.length)], added: Date.now() }, ...(team ? { [`teams/${id}`]: team } : {}) });
+  }
+
+  async removeBot(id) { if (this.isHost) await update(this.r('meta'), { [`bots/${id}`]: null, [`teams/${id}`]: null }); }
+
+  /** host (team mode): move a slot to the other team */
+  async swapTeam(id) {
+    if (!this.isHost || this.meta?.mode !== 'team') return;
+    const s = this.slots.find((x) => x.id === id);
+    if (!s) return;
+    const to = s.team === 'A' ? 'B' : 'A';
+    const there = this.slots.filter((x) => x.team === to);
+    const upd = { [`teams/${id}`]: to };
+    if (there.length >= 2) upd[`teams/${there[there.length - 1].id}`] = s.team; // full → trade places
+    await update(this.r('meta'), upd);
+  }
 
   /* ---------------- start / matchmaking (host) ---------------- */
   async play() {
     if (!this.isHost || this.meta.state !== 'lobby') return;
     const mode = this.meta.mode;
-    if (mode === 'duel') {
-      if (!this.friendUid) throw fail('듀얼은 친구가 들어와야 시작할 수 있습니다');
-      const members = { [this.uid]: this.players[this.uid], [this.friendUid]: this.players[this.friendUid] };
-      const teams = { [this.uid]: 'A', [this.friendUid]: 'B' };
-      await createMatch('duel', [{ code: this.code, members }], teams);
+    if (mode === 'duo') {
+      if (this.size > 2) throw fail('매칭은 2명까지만 함께 할 수 있습니다');
+      await this.enqueue(mode);
       return;
     }
-    await this.enqueue(mode);
+    const slots = this.slots, need = ROOM_SLOTS[mode];
+    if (slots.length < need) throw fail(`${MODE_NAMES[mode]}은 ${need}명이 필요합니다 — 친구를 초대하거나 AI를 넣으세요`);
+    if (slots.length > need) throw fail(`인원이 너무 많습니다 (${MODE_NAMES[mode]}은 ${need}명)`);
+    const members = {}, teams = {}, bots = {};
+    for (const s of slots) {
+      teams[s.id] = s.team;
+      if (s.bot) bots[s.id] = { name: s.name, char: s.char, loadout: { primary: 'rifle', secondary: 'pistol', sidearm: 'knife' }, skins: {}, bot: true, owner: this.uid };
+      else members[s.id] = this.players[s.id];
+    }
+    await createMatch(mode, [{ code: this.code, members }], teams, bots);
   }
 
   async enqueue(mode) {
@@ -181,19 +248,26 @@ export class RoomClient {
 }
 
 /** Write matches/{id} and send every party into it (rooms/{code}/meta.state = playing). */
-export async function createMatch(mode, parties, teams) {
+export async function createMatch(mode, parties, teams, bots = {}) {
   const mref = push(ref(getDb(), 'matches'));
   const players = {};
-  const slot = { A: 0, B: 0 };
+  const slot = { A: 0, B: 0, C: 0, D: 0 };
   for (const p of parties) {
     for (const [uid, prof] of Object.entries(p.members)) {
       const team = teams[uid];
       players[uid] = { ...prof, team, slot: slot[team]++, party: p.code };
     }
   }
-  const startAt = serverNow() + 3500;
-  const map = ['ice', 'forest', 'honey'][Math.floor(Math.random() * 3)]; // every match: a random map
-  await set(mref, { meta: { mode, map, state: 'playing', startAt, created: Date.now(), target: WIN_KILLS[mode] }, players });
+  for (const [id, b] of Object.entries(bots)) players[id] = { ...b, team: teams[id], slot: slot[teams[id]]++, party: parties[0]?.code || '' };
+  const startAt = serverNow() + 4000;
+  const map = randomMap(); // every match: a random map
+  const score = {};
+  for (const p of Object.values(players)) score[p.team] = 0;
+  await set(mref, {
+    meta: { mode, map, state: 'playing', startAt, created: Date.now(), target: WIN_KILLS[mode], roundTime: ROUND_TIME, overtime: OVERTIME },
+    round: { n: 0, startAt, score },
+    players,
+  });
   await Promise.all(parties.map((p) => update(ref(getDb(), `rooms/${p.code}/meta`), { state: 'playing', match: mref.key, startAt })));
   return mref.key;
 }

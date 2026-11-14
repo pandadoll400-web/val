@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 import { getWeaponIcon } from './gunModels.js';
+import { getPortrait } from '../menu/ui.js';
+import { getCharacter } from '../data/characters.js';
+import { MODE_NAMES } from '../net/room.js';
 
 const $ = (id) => document.getElementById(id);
 const getThemeName = (game) => game.mapName || '얼음 협곡';
@@ -9,6 +12,7 @@ const TINTS = {
   golem: 'radial-gradient(ellipse at center, rgba(120,95,70,0) 45%, rgba(120,95,70,.45) 85%, rgba(255,120,40,.35) 100%)',
   shield: 'radial-gradient(ellipse at center, rgba(255,182,39,0) 40%, rgba(255,182,39,.35) 80%, rgba(255,61,242,.35) 100%)',
   echo: 'radial-gradient(ellipse at center, rgba(255,95,184,0) 45%, rgba(255,95,184,.38) 100%)',
+  bloom: 'radial-gradient(ellipse at center, rgba(255,143,208,0) 45%, rgba(150,255,120,.32) 85%, rgba(255,143,208,.35) 100%)',
   slow: 'radial-gradient(ellipse at center, rgba(120,200,255,0) 45%, rgba(120,200,255,.4) 100%)',
 };
 
@@ -31,7 +35,8 @@ export class HUD {
     this.el.dmg.innerHTML = '';
     $('death').classList.add('hidden');
     $('scoreboard').classList.add('hidden');
-    this.el.mode.textContent = `FROST CANYON · ${getThemeName(game)} · ` + (game.net ? { duel: '듀얼 1대1', duo: '듀오 2대2' }[game.mode] : game.mode === 'training' ? '훈련장' : '섬멸전');
+    this.el.mode.textContent = `FROST CANYON · ${getThemeName(game)} · ` + (game.net ? MODE_NAMES[game.mode] : game.mode === 'training' ? '훈련장' : '섬멸전');
+    this.buildVersus();
     $('hud-char').textContent = `${game.character.name} · ${game.character.title}`;
 
     this.el.slots.innerHTML = game.weapons.slots.map((s, i) => `
@@ -43,6 +48,53 @@ export class HUD {
       this.skillEls[k] = { el, cd: el.querySelector('.cd'), time: el.querySelector('.sk-time'), bar: el.querySelector('.sk-bar i'), badge: el.querySelector('.sk-badge') };
     }
     this.onWeaponChange();
+  }
+
+  /** online: [my team portraits + score] [⌛ round clock] [enemy portraits + score] */
+  buildVersus() {
+    const g = this.game, bar = $('versus-bar');
+    $('topcenter').classList.toggle('net', !!g.net);
+    if (!g.net) { bar.classList.add('hidden'); bar.innerHTML = ''; return; }
+    const net = g.net, byTeam = {};
+    for (const [uid, p] of Object.entries(net.players)) (byTeam[p.team] ||= []).push({ uid, p });
+    const side = (team, cls) => {
+      const mem = (byTeam[team] || []).sort((a, b) => (a.uid === net.uid ? -1 : b.uid === net.uid ? 1 : a.p.slot - b.p.slot));
+      const faces = mem.map(({ uid, p }) => {
+        const c = getCharacter(p.char), face = getPortrait(c);
+        return `<div class="vs-face" data-uid="${uid}" title="${p.name}"><div class="vs-img" style="border-color:${c.color}">${face ? `<img src="${face}" alt="">` : ''}</div><div class="vs-hp"><i></i></div><span class="vs-name">${p.name}</span></div>`;
+      }).join('');
+      return `<div class="vs-side ${cls}" data-team="${team}"><div class="vs-faces">${faces}</div><div class="vs-score">0</div></div>`;
+    };
+    const others = Object.keys(byTeam).filter((t) => t !== g.myTeam).sort();
+    bar.innerHTML = side(g.myTeam, 'ally') + `<div class="vs-timer"><span class="vs-ico">⌛</span><span class="vs-time">1:30</span><small class="vs-ot">연장</small></div>`
+      + others.map((t, i) => side(t, others.length > 1 ? `enemy e${i}` : 'enemy')).join('');
+    bar.classList.remove('hidden');
+    this.vsFaces = [...bar.querySelectorAll('.vs-face')].map((el) => ({ el, uid: el.dataset.uid, fill: el.querySelector('.vs-hp i') }));
+    this.vsScores = [...bar.querySelectorAll('.vs-side')].map((el) => ({ team: el.dataset.team, el: el.querySelector('.vs-score') }));
+    this.vsTime = bar.querySelector('.vs-time');
+    this.vsTimer = bar.querySelector('.vs-timer');
+  }
+
+  updateVersus() {
+    const g = this.game;
+    if (!g.net || !this.vsTime) return;
+    const s = g.score || {};
+    for (const v of this.vsScores) { const n = String(s[v.team] || 0); if (v.el.textContent !== n) { v.el.textContent = n; v.el.classList.remove('pop'); void v.el.offsetWidth; v.el.classList.add('pop'); } }
+    for (const f of this.vsFaces) {
+      let hp = 0, max = 150, alive = true;
+      if (f.uid === g.net.uid) { hp = g.player.hp; max = g.player.maxHp; alive = g.player.alive; }
+      else {
+        const r = g.remotes[f.uid] || g.bots.find((b) => b.uid === f.uid);
+        if (r) { hp = r.hp; max = r.maxHp || 150; alive = r.alive && !r.gone; }
+      }
+      f.fill.style.width = Math.max(0, Math.min(100, (hp / max) * 100)) + '%';
+      f.el.classList.toggle('dead', !alive);
+    }
+    const c = g.roundClock(), secs = Math.ceil(c.left);
+    const txt = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+    if (this.vsTime.textContent !== txt) this.vsTime.textContent = txt;
+    this.vsTimer.classList.toggle('ot', c.ot);
+    this.vsTimer.classList.toggle('low', !c.ot && c.left < 10);
   }
 
   onWeaponChange() {
@@ -189,7 +241,8 @@ export class HUD {
       if (d.t > 0.9) { d.el.remove(); this.dmgNums.splice(i, 1); }
     }
 
-    this.el.score.textContent = g.net ? g.scoreText() : g.mode === 'training'
+    this.updateVersus();
+    this.el.score.textContent = g.net ? `K/D/A ${g.kills} / ${g.deaths} / ${g.assists}` : g.mode === 'training'
       ? `처치 ${g.kills} · 명중률 ${g.shots ? Math.round((g.hits / g.shots) * 100) : 0}% · 헤드샷 ${g.headshots}`
       : `처치 ${g.kills} / ${g.totalEnemies}`;
   }
@@ -201,5 +254,7 @@ export class HUD {
     this.el.tint.style.opacity = 0;
     this.el.vignette.style.opacity = 0;
     this.el.scope.classList.add('hidden');
+    $('versus-bar').classList.add('hidden');
+    $('topcenter').classList.remove('net');
   }
 }

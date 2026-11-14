@@ -212,6 +212,23 @@ export function makeSoldier(color = '#4f7fa8', accent = '#9be8ff', style = 'enem
     add(R.sh, new THREE.SphereGeometry(0.1, 12, 10), water, 0, 0.18, 0);    // water orb on the right
     add(torso, box(0.62, 1.0, 0.04), accentMat, 0, 0.12, 0.21, 'body', 0.1); // cape
     add(torso, box(0.62, 0.06, 0.06), glow, 0, 0.63, 0.2);                   // cape clasp
+  } else if (style === 'bloom') {
+    // flower crown, leaf cape, vine on the back, glowing pollen
+    hadd(box(0.27, 0.1, 0.28), body, 0, 0.27, 0.005);                         // leafy hair
+    const petal = new THREE.MeshStandardMaterial({ color: '#ff8fd0', emissive: '#ff4fa8', emissiveIntensity: 0.4, roughness: 0.6 });
+    const centre = new THREE.MeshStandardMaterial({ color: '#ffe066', emissive: '#ffb000', emissiveIntensity: 0.6 });
+    mats.push(petal, centre);
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2;
+      hadd(new THREE.SphereGeometry(0.045, 8, 6), petal, Math.cos(a) * 0.15, 0.31, Math.sin(a) * 0.15);
+      hadd(new THREE.SphereGeometry(0.02, 6, 5), centre, Math.cos(a) * 0.15, 0.335, Math.sin(a) * 0.15);
+    }
+    hadd(box(0.05, 0.03, 0.01), glow, -0.06, 0.15, -0.137);
+    hadd(box(0.05, 0.03, 0.01), glow, 0.06, 0.15, -0.137);
+    for (let i = 0; i < 5; i++) add(torso, box(0.16, 0.36, 0.02), accentMat, -0.24 + i * 0.12, 0.2 - Math.abs(i - 2) * 0.05, 0.21, 'body', 0.12, 0, (i - 2) * 0.12); // leaf cape
+    add(torso, cyl(0.025, 0.025, 0.7, 6), body, 0.12, 0.35, 0.22, 'body', 0, 0, -0.4);   // vine
+    for (const [x, y] of [[0.02, 0.15], [0.18, 0.45], [0.26, 0.62]]) add(torso, new THREE.SphereGeometry(0.05, 8, 6), petal, x, y, 0.25);
+    add(R.hand, new THREE.SphereGeometry(0.035, 8, 6), glow, 0, -0.09, 0);       // pollen in the palm
   } else if (style === 'titan') {
     // horned stone helmet, huge rock pauldrons, armour plates
     hadd(box(0.36, 0.22, 0.36), plate, 0, 0.22, 0.01);
@@ -248,7 +265,7 @@ export function makeSoldier(color = '#4f7fa8', accent = '#9be8ff', style = 'enem
   gun.add(muzzle);
 
   // silhouettes: Titan is bulky, Ghost and Glitch are lanky
-  const SHAPE = { titan: [1.18, 1.08], ghost: [0.92, 1.04], glitch: [0.94, 1.02], inferno: [1.05, 1.06], nitro: [1, 0.98] }[style];
+  const SHAPE = { bloom: [0.97, 1.01], titan: [1.18, 1.08], ghost: [0.92, 1.04], glitch: [0.94, 1.02], inferno: [1.05, 1.06], nitro: [1, 0.98] }[style];
   if (SHAPE) { torso.scale.set(SHAPE[0], SHAPE[1], SHAPE[0]); for (const l of legs) l.scale.set(SHAPE[0], SHAPE[1], SHAPE[0]); }
   const joints = { hips, torso, neck, head, shL: L.sh, elL: L.el, shR: R.sh, elR: R.el, legL: legs[0], knL: knees[0], legR: legs[1], knR: knees[1], handL: L.hand, handR: R.hand };
   const model = {

@@ -93,6 +93,13 @@ export const CHARACTERS = [
     q: { name: '증기 폭발', desc: '왼손의 물 구슬과 오른손의 화염 구슬을 합쳐 조준한 곳에 6초간 짙은 수증기 — 상대 시야를 가림', cd: 14 },
     e: { name: '마력 결계', desc: '한 손에 거대한 마법 구슬을 만들어 3초간 모든 공격을 흡수', cd: 18 },
   },
+  {
+    id: 'bloom', name: '블룸', title: '생명의 정원사', rarity: 'infinity', price: 8000,
+    color: '#5fc83a', accent: '#ff8fd0',
+    desc: '씨앗 하나로 죽음마저 되돌리는 정원사. 그의 꽃이 피어 있는 한 쓰러지지 않는다.',
+    q: { name: '생명의 씨앗', desc: '씨앗을 바닥에 꽂아 즉시 꽃나무를 키운다 — 꽃나무가 있는 동안 죽으면 그 자리에서 되살아남', cd: 60 },
+    e: { name: '축복의 씨앗', desc: '씨앗 2개 — 하나는 나, 하나는 가장 가까운 아군에게. 각각 무작위: 체력 +30 · 5초간 피해 1.5배 · 10초간 이동속도 1.5배', cd: 18 },
+  },
 ];
 
 export const getCharacter = (id) => CHARACTERS.find((c) => c.id === id) || CHARACTERS[0];

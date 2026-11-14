@@ -35,7 +35,10 @@ export class NetSession {
     this.shotSeq = 0;
     this.tracerEnd = null;
     this.score = { A: 0, B: 0 };
+    this.round = { n: 0, startAt: match.meta.startAt, score: {} };
     this.stats = {}; // uid → { k, d, a }
+    // AI players simulated on my screen (I created the room)
+    this.myBots = Object.keys(this.players).filter((u) => this.players[u].bot && this.players[u].owner === uid);
     this.ended = false;
     this.present = new Set();
     this.listeners = [];
@@ -49,7 +52,11 @@ export class NetSession {
   }
 
   r(path) { return ref(getDb(), `matches/${this.id}/${path}`); }
-  get others() { return Object.keys(this.players).filter((u) => u !== this.uid); }
+  /** everyone drawn as a RemotePlayer on my screen (not me, not the AI I simulate) */
+  get others() { return Object.keys(this.players).filter((u) => u !== this.uid && !this.myBots.includes(u)); }
+  /** everyone I send messages to (people and AI owned by someone else) */
+  get peers() { return Object.keys(this.players).filter((u) => u !== this.uid && !this.myBots.includes(u)); }
+  get humans() { return Object.keys(this.players).filter((u) => !this.players[u].bot); }
 
   attach(game) {
     this.game = game;
@@ -59,7 +66,14 @@ export class NetSession {
     onChildAdded(live, onLive);
     onChildChanged(live, onLive);
     onChildAdded(track(this.r(`ev/${this.uid}`)), (s) => this.onEvent(s));
-    onValue(track(this.r('score')), (s) => { this.score = { A: 0, B: 0, ...(s.val() || {}) }; game.onNetScore?.(this.score); });
+    onValue(track(this.r('round')), (s) => {
+      const r = s.val();
+      if (!r) return;
+      this.round = r;
+      this.score = { ...(r.score || {}) };
+      game.onNetRound?.(r);
+    });
+    for (const b of this.myBots) onChildAdded(track(this.r(`ev/${b}`)), (s) => this.onBotEvent(b, s));
     onValue(track(this.r('stats')), (s) => { this.stats = s.val() || {}; game.onNetStats?.(this.stats); });
     onValue(track(this.r('meta')), (s) => {
       const m = s.val();
@@ -77,16 +91,22 @@ export class NetSession {
     onDisconnect(meHere).remove();
     onDisconnect(meLive).remove();
     set(meHere, true);
+    for (const b of this.myBots) {
+      onDisconnect(this.r(`here/${b}`)).remove();
+      onDisconnect(this.r(`live/${b}`)).remove();
+      set(this.r(`here/${b}`), true);
+    }
   }
 
   dispose() {
     for (const rf of this.listeners) off(rf);
     this.listeners = [];
     // last one out (or the match is over and nobody else is here) deletes the whole match
-    const others = [...this.present].filter((u) => u !== this.uid).length;
+    const others = [...this.present].filter((u) => u !== this.uid && !this.myBots.includes(u)).length;
     if (others === 0) { remove(ref(getDb(), `matches/${this.id}`)).catch(() => {}); return; }
     remove(this.r(`live/${this.uid}`)).catch(() => {});
     remove(this.r(`here/${this.uid}`)).catch(() => {});
+    for (const b of this.myBots) { remove(this.r(`live/${b}`)).catch(() => {}); remove(this.r(`here/${b}`)).catch(() => {}); }
   }
 
   /* ---------------- per frame: send my state at most every 50 ms ---------------- */
@@ -114,6 +134,16 @@ export class NetSession {
       Math.max(0, Math.round(p.hp)), this.shotSeq, r2(t.x), r2(t.y), r2(t.z), Math.round(serverNow())];
     set(this.r(`live/${this.uid}`), data).catch((e) => g.hud?.msg('네트워크 오류: ' + (e.code || e.message), 2));
     this.sent++;
+    // the AI players I simulate
+    for (const b of g.bots) {
+      if (!b.uid) continue;
+      let bf = 0;
+      if (b.alive) bf |= F_ALIVE;
+      if (b.onGround) bf |= F_GROUND;
+      const te = b.tracerEnd || b.position;
+      set(this.r(`live/${b.uid}`), [r2(b.position.x), r2(b.position.y), r2(b.position.z), r3(b.yaw), 0, 'rifle', bf,
+        Math.max(0, Math.round(b.hp)), b.shotSeq || 0, r2(te.x), r2(te.y), r2(te.z), Math.round(serverNow())]).catch(() => {});
+    }
   }
 
   /** my weapon fired: shown to the others through shotSeq in the next state packet */
@@ -136,9 +166,25 @@ export class NetSession {
   }
 
   /* ---------------- messages ---------------- */
-  send(to, type, data = {}) {
+  send(to, type, data = {}, from = this.uid) {
     if (!to || !this.present.has(to) && type !== 'feed') return;
-    push(this.r(`ev/${to}`), { from: this.uid, type, ...data }).catch(() => {});
+    push(this.r(`ev/${to}`), { from, type, ...data }).catch(() => {});
+  }
+
+  /** one of my AI players shot a person */
+  sendBotHit(bot, to, dmg) {
+    this.send(to, 'hit', { dmg: Math.round(dmg), head: false, weapon: '소총', x: r2(bot.position.x), z: r2(bot.position.z) }, bot.uid);
+  }
+
+  /** a message for one of my AI players (hit / effect from another screen) */
+  onBotEvent(botId, s) {
+    const v = s.val();
+    remove(s.ref).catch(() => {});
+    if (!v || this.ended) return;
+    const bot = this.game?.bots.find((b) => b.uid === botId);
+    if (!bot || this.game.frozen) return;
+    if (v.type === 'hit') bot.applyDamage(v.dmg, { killerUid: v.from, weapon: v.weapon, headshot: v.head, from: 'net' });
+    else if (v.type === 'eff') bot.applyEffect(v.kind, v.dur);
   }
 
   sendHit(to, dmg, info = {}) {
@@ -147,7 +193,7 @@ export class NetSession {
   }
 
   sendEffect(to, kind, dur) { this.send(to, 'eff', { kind, dur }); }
-  fx(data) { for (const u of this.others) this.send(u, 'fx', { d: data }); }
+  fx(data) { for (const u of this.humans) if (u !== this.uid) this.send(u, 'fx', { d: data }); }
 
   onEvent(s) {
     const v = s.val();
@@ -156,26 +202,54 @@ export class NetSession {
     const g = this.game;
     if (v.type === 'hit') g.onNetHit?.(v);
     else if (v.type === 'eff') g.onNetEffect?.(v);
-    else if (v.type === 'fx') g.onNetFx?.(v.d);
+    else if (v.type === 'fx') g.onNetFx?.(v.d && { ...v.d, from: v.from });
     else if (v.type === 'feed') g.onNetFeed?.(v);
   }
 
-  /* ---------------- death → score (the victim reports it) ---------------- */
-  async reportDeath(killerUid, weapon, head) {
-    const killer = this.players[killerUid];
-    const team = killer ? killer.team : (this.myTeam === 'A' ? 'B' : 'A');
-    const feed = { killer: killerUid || '', killerName: killer?.name || '?', victim: this.uid, victimName: this.me.name, weapon: weapon || '', head: !!head, team };
-    for (const u of this.others) push(this.r(`ev/${u}`), { from: this.uid, type: 'feed', ...feed }).catch(() => {});
-    const res = await runTransaction(this.r(`score/${team}`), (n) => (n || 0) + 1);
-    const val = res.snapshot.val();
-    if (val >= this.target) this.endMatch({ winner: team, reason: 'kills' });
+  /* ---------------- death → round point (the victim's screen reports it) ---------------- */
+  async reportDeath(killerUid, weapon, head, victimUid = this.uid) {
+    const killer = this.players[killerUid], victim = this.players[victimUid];
+    const team = killer && killer.team !== victim.team ? killer.team : null;
+    const feed = { killer: killerUid || '', killerName: killer?.name || '?', victim: victimUid, victimName: victim?.name || '?', weapon: weapon || '', head: !!head, team: team || '' };
+    for (const u of this.humans) if (u !== this.uid) push(this.r(`ev/${u}`), { from: this.uid, type: 'feed', ...feed }).catch(() => {});
+    if (victimUid !== this.uid) this.game.onNetFeed?.(feed); // an AI I simulate died: I see the feed too
+    else this.creditBot(killerUid);
+    // the first kill of a round wins it (later kills of the same round are ignored)
+    await this.winRound(team, { reason: 'kill', killer: feed.killerName, victim: feed.victimName });
+  }
+
+  /** an AI I simulate got a kill → its K/D/A */
+  creditBot(killerUid) {
+    if (!this.myBots.includes(killerUid)) return;
+    const b = this.game.bots.find((x) => x.uid === killerUid);
+    if (!b) return;
+    b.k = (b.k || 0) + 1;
+    this.pushStatsFor(b.uid, b.k, b.d || 0, 0);
+  }
+
+  pushStatsFor(uid, k, d, a) {
+    this.stats[uid] = { k, d, a };
+    set(this.r(`stats/${uid}`), { k, d, a }).catch(() => {});
+  }
+
+  /** round over → point to team (null = no point), next round starts after a short break */
+  async winRound(team, last) {
+    const n = this.round.n;
+    let finalScore = null;
+    await runTransaction(this.r('round'), (cur) => {
+      if (!cur || cur.n !== n || cur.over) return undefined; // someone already ended this round
+      const score = { ...(cur.score || {}) };
+      if (team) score[team] = (score[team] || 0) + 1;
+      finalScore = score;
+      const over = team && score[team] >= this.target;
+      return { n: n + 1, startAt: serverNow() + 4500, score, last: { ...last, team: team || '' }, over: !!over };
+    }).then((res) => {
+      if (res.committed && team && finalScore && finalScore[team] >= this.target) this.endMatch({ winner: team, reason: last.reason });
+    }).catch(() => {});
   }
 
   /** my kills / deaths / assists, shown to everybody on the result screen */
-  pushStats(k, d, a) {
-    this.stats[this.uid] = { k, d, a };
-    set(this.r(`stats/${this.uid}`), { k, d, a }).catch(() => {});
-  }
+  pushStats(k, d, a) { this.pushStatsFor(this.uid, k, d, a); }
 
   async endMatch(result) {
     await runTransaction(this.r('meta'), (m) => {

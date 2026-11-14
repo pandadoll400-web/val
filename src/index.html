@@ -30,7 +30,6 @@
       </p>
 
       <button id="btn-play" class="btn primary">플레이</button>
-      <button id="btn-duel" class="btn duel-btn">듀얼 플레이 <span class="new-tag">ONLINE</span></button>
       <div class="tab-row">
         <button id="btn-chars" class="btn ghost">캐릭터</button>
         <button id="btn-weapons" class="btn ghost">무기</button>
@@ -55,29 +54,16 @@
         </button>
         <button class="mode-card" data-mode="multi">
           <div class="mode-ico">⚔</div>
-          <div><div class="mode-name">듀얼 · 듀오</div><div class="mode-desc">친구와 1대1, 또는 매칭으로 2대2 — 방 만들기/참가</div></div>
+          <div><div class="mode-name">듀얼 <span class="new-tag">ONLINE</span></div><div class="mode-desc">누르면 바로 방 코드가 생깁니다 · 1대1 · 1대1대1 · 친구와 2대2 · AI 추가</div></div>
         </button>
-      </div>
-    </div>
-
-    <!-- Online: create / join a room -->
-    <div id="panel-duel" class="panel hidden">
-      <div class="panel-head"><h2>듀얼 플레이</h2><button class="x" data-close>✕</button></div>
-      <div class="mode-list">
-        <button id="duel-create" class="mode-card">
-          <div class="mode-ico">＋</div>
-          <div><div class="mode-name">방 만들기</div><div class="mode-desc">5글자 방 코드가 생깁니다 — 친구에게 알려 주세요</div></div>
-        </button>
-        <button id="duel-join-open" class="mode-card">
-          <div class="mode-ico">⇥</div>
-          <div><div class="mode-name">방 참가</div><div class="mode-desc">친구에게 받은 5글자 코드를 입력</div></div>
-        </button>
-        <div id="duel-join" class="join-row hidden">
-          <input id="duel-code" maxlength="5" placeholder="코드 5글자" autocomplete="off" spellcheck="false" />
+        <div class="join-title">친구 방에 들어가기</div>
+        <div id="duel-join" class="join-row">
+          <input id="duel-code" maxlength="5" placeholder="방 코드 5글자" autocomplete="off" spellcheck="false" />
           <button id="duel-join-go" class="btn primary">참가</button>
         </div>
       </div>
-      <div class="hint">친구도 같은 얼음협곡.html 파일을 열고 [듀얼 플레이] → [방 참가]를 누르면 됩니다.</div>
+    </div>
+
     </div>
 
     <!-- Characters -->
@@ -171,9 +157,12 @@
     </div>
     <div id="room-status" class="room-status"></div>
     <div class="room-bottom">
+      <div id="room-slots" class="room-slots"></div>
       <div id="room-modes" class="room-modes">
-        <button data-mode="duel"><b>듀얼</b><small>1대1 · 방 안의 친구와 대결</small></button>
-        <button data-mode="duo"><b>듀오</b><small>2대2 · 사람끼리 매칭</small></button>
+        <button data-mode="duel"><b>듀얼</b><small>1대1</small></button>
+        <button data-mode="ffa"><b>개인전</b><small>1대1대1 · 3명</small></button>
+        <button data-mode="team"><b>팀전</b><small>친구와 2대2</small></button>
+        <button data-mode="duo"><b>매칭</b><small>2대2 · 모르는 사람과</small></button>
       </div>
       <div class="room-actions">
         <button id="room-leave" class="btn ghost">나가기</button>
@@ -191,7 +180,7 @@
     <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="dot"></i></div>
     <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
 
-    <div id="topcenter"><div id="mode-label"></div><div id="score-label"></div></div>
+    <div id="topcenter"><div id="versus-bar" class="hidden"></div><div id="mode-label"></div><div id="score-label"></div></div>
     <div id="killfeed"></div>
     <div id="center-msg"></div>
     <div id="dmg-layer"></div>

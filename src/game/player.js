@@ -72,6 +72,7 @@ export class Player {
     this.hp = this.maxHp;
     this.alive = true;
     this.glitchSlowT = this.weakT = this.blindT = this.shieldT = 0;
+    this.speedBuffT = this.slowT = 0;
     this.updateCamera(0);
   }
 
@@ -161,6 +162,9 @@ export class Player {
     if (this.slowT > 0) { this.slowT -= dt; speed *= 0.5; }
     if (this.glitchSlowT > 0) speed /= 3;
     if (this.inkBoost > 0) speed *= 1 + this.inkBoost;
+    if (this.speedBuffT > 0) { this.speedBuffT -= dt; speed *= 1.5; }  // Bloom seed
+    this.inWater = this.game.world.inWater(this.pos.x, this.pos.z, this.pos.y);
+    if (this.inWater) speed *= 0.6;
     const accel = this.onGround ? 14 : 2.5;
     this.vel.x = damp(this.vel.x, wx * speed, accel, dt);
     this.vel.z = damp(this.vel.z, wz * speed, accel, dt);
@@ -196,16 +200,26 @@ export class Player {
     const wasGround = this.onGround;
     const res = collideMove(this.pos, this.vel, dt, this.radius, this.height, this.game.world.colliders, this.onGround);
     this.onGround = res.onGround;
-    if (!wasGround && this.onGround && fallSpeed < -4) this.landKick = Math.min(0.25, -fallSpeed * 0.02);
+    if (!wasGround && this.onGround && fallSpeed < -4) {
+      this.landKick = Math.min(0.25, -fallSpeed * 0.02);
+      audio.land(this.game.world.surfaceAt(this.pos.x, this.pos.z, this.pos.y));
+    }
     if (this.pos.y < -20) this.pos.set(0, 2, 70);
 
-    // health regen
-    if (this.time - this.lastHurt > REGEN_DELAY && this.hp < this.maxHp) this.heal(REGEN_RATE * dt);
+    // health regen (offline only — online matches never regenerate)
+    if (!this.game.net && this.time - this.lastHurt > REGEN_DELAY && this.hp < this.maxHp) this.heal(REGEN_RATE * dt);
 
     const hs = Math.hypot(this.vel.x, this.vel.z);
     this.moving = hs > 0.8 && this.onGround && !this.sliding;
     this.bobAmt = damp(this.bobAmt, this.moving ? (this.sprinting ? 1.4 : 1) : 0, 8, dt);
+    const prevStep = Math.floor(this.bobPhase / Math.PI);
     this.bobPhase += dt * hs * 1.7;
+    if (this.moving && Math.floor(this.bobPhase / Math.PI) !== prevStep) {
+      // footstep: quiet while crouching, louder while sprinting
+      const surf = this.game.world.surfaceAt(this.pos.x, this.pos.z, this.pos.y);
+      audio.step(surf, 0, this.crouching ? 0.25 : this.sprinting ? 1.1 : 0.75);
+      if (surf === 'water') this.game.effects.burst(this.pos.clone().setY(0.32), { count: 5, color: '#cfefff', speed: 2.2, size: 0.04, life: 0.45 });
+    }
     this.updateCamera(dt);
   }
 

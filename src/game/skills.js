@@ -90,6 +90,9 @@ export class SkillSystem {
     this.trail = null;    // Nitro: fire trail while dashing
     this.golemT = 0;      // Titan: stone golem (damage x1.6)
     this.titanStacks = 0; // Titan: +20 max HP per Q (max 3)
+    this.bloomTree = null; // Bloom: planted life tree (revive point)
+    this.bloomDmgT = 0;    // Bloom seed: weapon damage x1.5
+    this.remoteTrees = {}; // Bloom trees planted by other players (visual only)
   }
 
   /** key released: fire a held skill (Frost E) */
@@ -543,7 +546,7 @@ export class SkillSystem {
   }
 
   /* ================= 에코 ================= */
-  damageMul() { return (this.echoBuffT > 0 ? 1.5 : 1) * (this.golemT > 0 ? 1.6 : 1); }
+  damageMul() { return (this.echoBuffT > 0 ? 1.5 : 1) * (this.golemT > 0 ? 1.6 : 1) * (this.bloomDmgT > 0 ? 1.5 : 1); }
 
   echo_q() {
     const ok = this.game.weapons.playEchoInsert(() => {
@@ -853,6 +856,142 @@ export class SkillSystem {
     return best;
   }
 
+  /* ================= 블룸 (인피니티) ================= */
+  makeLifeTree(pos) {
+    const g = new THREE.Group();
+    const bark = new THREE.MeshStandardMaterial({ color: '#6a4426', roughness: 0.9, flatShading: true });
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.2, 1.6, 8), bark);
+    trunk.position.y = 0.8;
+    g.add(trunk);
+    for (const s of [-1, 1]) {
+      const br = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.08, 0.8, 6), bark);
+      br.position.set(s * 0.25, 1.4, 0); br.rotation.z = -s * 0.7;
+      g.add(br);
+    }
+    const blossom = new THREE.MeshStandardMaterial({ color: '#ff9fd8', emissive: '#ff5fb8', emissiveIntensity: 0.35, roughness: 0.6, flatShading: true });
+    const leaf = new THREE.MeshStandardMaterial({ color: '#6fdc4a', emissive: '#2f8a1a', emissiveIntensity: 0.25, roughness: 0.7, flatShading: true });
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2, r = 0.35 + (i % 3) * 0.18;
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.32 + (i % 2) * 0.12, 0), i % 3 ? blossom : leaf);
+      m.position.set(Math.cos(a) * r, 1.75 + (i % 3) * 0.22, Math.sin(a) * r);
+      g.add(m);
+    }
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.85, 32), new THREE.MeshBasicMaterial({ color: '#9dff7a', transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04;
+    g.add(ring, this.fx.glowSprite('#b6ff6a', 2.2));
+    const light = new THREE.PointLight('#b6ff8a', 4, 6, 1.5);
+    light.position.y = 1.6;
+    g.add(light);
+    g.position.copy(pos);
+    g.scale.setScalar(0.01);
+    this.game.scene.add(g);
+    return { g, ring, grow: 0, pos: pos.clone() };
+  }
+
+  removeLifeTree(t, burst = true) {
+    if (!t) return;
+    if (burst) this.fx.burst(t.pos.clone().setY(1.6), { count: 30, color: '#ff9fd8', speed: 4, size: 0.07, gravity: 2, life: 1 });
+    this.game.scene.remove(t.g);
+    t.g.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+  }
+
+  bloom_q() {
+    const fwd = this.flatForward();
+    const at = this.p.position.clone().addScaledVector(fwd, 1.4);
+    at.y = this.floorBelow(at.clone().setY(this.p.position.y + 0.3));
+    const ok = this.game.weapons.playSeedPlant(() => {
+      if (this.bloomTree) { this.removeLifeTree(this.bloomTree); this.game.net?.fx({ k: 'bloomEnd' }); }
+      this.bloomTree = this.makeLifeTree(at);
+      this.fx.burst(at.clone().setY(0.2), { count: 24, color: '#9dff5a', speed: 3, size: 0.05, gravity: -1, life: 0.9 });
+      this.fx.ring?.(at.clone().setY(0.08), '#9dff7a', 2.5, 0.5, 0.1);
+      audio.skill('rock');
+      this.game.net?.fx({ k: 'bloom', x: at.x, y: at.y, z: at.z });
+      this.game.hud.msg('생명의 꽃나무 — 죽으면 이 자리에서 되살아납니다', 2);
+    });
+    if (!ok) return false;
+  }
+
+  /** called when I die: a life tree brings me back at its spot */
+  tryBloomRevive() {
+    const t = this.bloomTree;
+    if (!t) return false;
+    this.bloomTree = null;
+    this.cancelCharge();
+    this.game.hud.msg('꽃나무가 당신을 되살립니다…', 1.4);
+    setTimeout(() => {
+      const g = this.game;
+      if (g.over || g.disposed) { this.removeLifeTree(t, false); return; }
+      this.removeLifeTree(t);
+      g.net?.fx({ k: 'bloomEnd' });
+      g.player.spawn(t.pos.clone(), g.player.yaw);
+      g.player.hp = g.player.maxHp;
+      document.getElementById('death').classList.add('hidden');
+      this.fx.burst(t.pos.clone().setY(1), { count: 40, color: '#9dff5a', speed: 5, size: 0.07, gravity: -1, life: 1.1 });
+      g.hud.flashTint('rgba(150,255,120,.4)');
+      g.hud.msg('부활!', 1.2);
+      audio.skill('absorb');
+    }, 1500);
+    return true;
+  }
+
+  bloom_e() {
+    const ok = this.game.weapons.playSeedToss(() => {
+      const g = this.game;
+      this.applyBloomSeed(Math.floor(Math.random() * 3), true);
+      // the second seed: the closest team mate (person or AI)
+      let best = null, bd = 1e9;
+      for (const r of Object.values(g.remotes)) if (!r.enemy && r.alive && !r.gone) { const d = r.position.distanceTo(this.p.position); if (d < bd) { bd = d; best = r; } }
+      for (const b of g.bots) if (g.net && b.team === g.myTeam && b.alive) { const d = b.position.distanceTo(this.p.position); if (d < bd) { bd = d; best = b; } }
+      if (!best) { g.hud.msg('주변에 아군이 없어 씨앗 하나만 사용했습니다', 1.4); return; }
+      const kind = Math.floor(Math.random() * 3);
+      const from = this.p.camera.position.clone(), to = best.position.clone().setY(best.position.y + 1.2);
+      this.fx.tracer(from, to, '#9dff5a', 0.03, 260);
+      this.fx.burst(to, { count: 18, color: '#ff9fd8', speed: 2.5, size: 0.05, gravity: -1, life: 0.8 });
+      if (best.isRemote) g.net?.sendEffect(best.uid, 'bloom', kind);
+      else if (kind === 0) best.hp = Math.min(best.maxHp, best.hp + 30);
+      g.hud.msg(`${best.name}에게 씨앗: ${['체력 +30', '피해 1.5배', '이동속도 1.5배'][kind]}`, 1.6);
+    });
+    if (!ok) return false;
+  }
+
+  /** a Bloom seed landed on me: 0 heal 30 · 1 damage x1.5 for 5 s · 2 speed x1.5 for 10 s */
+  applyBloomSeed(kind, mine = false) {
+    const p = this.p;
+    if (!p.alive) return;
+    if (kind === 0) p.heal(30);
+    else if (kind === 1) this.bloomDmgT = 5;
+    else p.speedBuffT = 10;
+    this.fx.burst(p.position.clone().setY(1.2), { count: 22, color: kind === 0 ? '#7dff9a' : kind === 1 ? '#ff8fd0' : '#ffe066', speed: 3, size: 0.05, gravity: -1.5, life: 0.9 });
+    this.game.hud.flashTint(kind === 0 ? 'rgba(120,255,150,.35)' : kind === 1 ? 'rgba(255,140,210,.35)' : 'rgba(255,230,100,.35)');
+    this.game.hud.msg(`${mine ? '' : '블룸의 '}축복의 씨앗: ${['체력 +30', '5초간 피해 1.5배', '10초간 이동속도 1.5배'][kind]}`, 1.8);
+    audio.skill('absorb');
+  }
+
+  /** a Bloom tree planted by someone else (visual) */
+  remoteTree(from, d) {
+    this.removeLifeTree(this.remoteTrees[from], false);
+    delete this.remoteTrees[from];
+    if (d) this.remoteTrees[from] = this.makeLifeTree(new THREE.Vector3(d.x, d.y, d.z));
+  }
+
+  onRoundReset() {
+    this.bloomDmgT = 0;
+    this.p.speedBuffT = 0;
+  }
+
+  updateBloom(dt) {
+    if (this.bloomDmgT > 0) this.bloomDmgT -= dt;
+    const all = [this.bloomTree, ...Object.values(this.remoteTrees)];
+    for (const t of all) {
+      if (!t) continue;
+      t.grow = Math.min(1, t.grow + dt * 2.2);
+      const k = 1 - Math.pow(1 - t.grow, 3);
+      t.g.scale.setScalar(Math.max(0.01, k * (1 + Math.sin(this.clock * 2) * 0.02)));
+      t.ring.material.opacity = 0.35 + Math.sin(this.clock * 3) * 0.2;
+      t.ring.rotation.z += dt * 0.5;
+    }
+  }
+
   /* ================= 타이탄 (영웅) ================= */
   titan_q() {
     if (this.titanStacks >= 3) { this.game.hud.msg('최대 체력이 이미 최대입니다 (210)'); return false; }
@@ -991,6 +1130,7 @@ export class SkillSystem {
     if (this.overheatT > 0) this.overheatT -= dt;
     if (this.echoBuffT > 0) this.echoBuffT -= dt;
     if (this.golemT > 0) { this.golemT -= dt; if (this.golemT <= 0 || !this.p.alive) this.endGolem(); }
+    this.updateBloom(dt);
     if (this.p.shieldT > 0) {
       this.p.shieldT -= dt;
       if (this.p.shieldT <= 0) { this.game.weapons.endCast(); audio.skill('absorb'); }
@@ -1003,7 +1143,7 @@ export class SkillSystem {
     this.updateLaser(dt);
     this.updateRemoteLasers(dt);
     if (this.invisT > 0) { this.invisT -= dt; if (this.invisT <= 0) this.endInvis(); }
-    this.game.hud.setTint(this.p.shieldT > 0 ? 'shield' : this.golemT > 0 ? 'golem' : this.invisT > 0 ? 'stealth' : this.overheatT > 0 ? 'overheat' : this.echoBuffT > 0 ? 'echo' : this.p.slowT > 0 ? 'slow' : null);
+    this.game.hud.setTint(this.p.shieldT > 0 ? 'shield' : this.golemT > 0 ? 'golem' : this.invisT > 0 ? 'stealth' : this.overheatT > 0 ? 'overheat' : this.echoBuffT > 0 ? 'echo' : this.bloomDmgT > 0 ? 'bloom' : this.p.slowT > 0 ? 'slow' : null);
 
     const world = this.game.world;
     for (let i = this.walls.length - 1; i >= 0; i--) {

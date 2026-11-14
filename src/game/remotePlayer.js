@@ -3,6 +3,7 @@ import { makeSoldier } from './soldier.js';
 import { getCharacter } from '../data/characters.js';
 import { damp } from '../util/noise.js';
 import { serverNow } from '../net/firebase.js';
+import { audio } from '../audio.js';
 
 const INTERP_DELAY = 110; // ms behind the newest data → always two snapshots to blend between
 const MAX_EXTRAP = 200;   // ms of extrapolation when packets are late
@@ -161,7 +162,12 @@ export class RemotePlayer {
       this.sprinting = !!(s.f & F_SPRINT);
       this.onGround = !!(s.f & F_GROUND);
       this.moving = hs > 0.8;
+      const ph0 = this.walkPhase;
       this.walkPhase += dt * Math.min(hs, 9) * 2.2;
+    if (this.moving && this.onGround && this.alive && Math.floor(this.walkPhase / Math.PI) !== Math.floor(ph0 / Math.PI)) {
+      const cam = this.game.camera.position, d = cam.distanceTo(this.position);
+      if (d < 32) audio.step(this.game.world.surfaceAt(this.position.x, this.position.z, this.position.y), d, this.crouch > 0.3 ? 0.3 : this.sprinting ? 1.1 : 0.8);
+    }
       const sw = Math.sin(this.walkPhase) * Math.min(1, hs / 3) * 0.6;
       this.model.legs[0].rotation.x = sw;
       this.model.legs[1].rotation.x = -sw;

@@ -1,4 +1,5 @@
-import { RoomClient, friendlyError, TEAM_SIZE, MODE_NAMES } from '../net/room.js';
+import { RoomClient, friendlyError, TEAM_SIZE, MODE_NAMES, ROOM_SLOTS } from '../net/room.js';
+import { getCharacter } from '../data/characters.js';
 import { CharStage } from './stage.js';
 import { save } from '../save.js';
 import { serverNow } from '../net/firebase.js';
@@ -16,8 +17,14 @@ export class RoomUI {
     this.room = new RoomClient({ onChange: () => this.render(), onClosed: (r) => this.closed(r) });
     this.busy = false;
 
-    $('duel-create').onclick = () => this.create();
-    $('duel-join-open').onclick = () => { $('duel-join').classList.remove('hidden'); $('duel-code').focus(); };
+    ui.onDuel = () => this.create(); // [플레이] → [듀얼]: a room with a code right away
+    $('room-slots').onclick = (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      const r = this.room, act = b.dataset.act, id = b.dataset.id;
+      const p = act === 'add' ? r.addBot(b.dataset.team) : act === 'del' ? r.removeBot(id) : act === 'swap' ? r.swapTeam(id) : null;
+      p?.catch((err) => this.ui.toast(friendlyError(err)));
+    };
     const input = $('duel-code');
     input.oninput = () => { input.value = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5); };
     input.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') this.join(input.value); };
@@ -109,10 +116,35 @@ export class RoomUI {
     });
     const start = $('room-start');
     const queued = m.state === 'queue';
-    if (m.mode === 'duel') start.textContent = '시작';
+    if (m.mode !== 'duo') start.textContent = '시작';
     else start.textContent = queued ? '매칭 취소' : '매칭 시작';
-    start.disabled = !r.isHost || (m.mode === 'duel' && !r.friendUid) || m.state === 'playing';
+    const slots = r.slots;
+    start.disabled = !r.isHost || m.state === 'playing' || (m.mode !== 'duo' && slots.length !== ROOM_SLOTS[m.mode]);
+    this.renderSlots(slots);
     this.updateStatus();
+  }
+
+  /** slot cards under the stage: team, name, host controls (+AI / ✕ / team swap) */
+  renderSlots(slots) {
+    const r = this.room, m = r.meta, host = r.isHost && m.state === 'lobby';
+    const cap = m.mode === 'duo' ? Math.max(2, slots.length) : ROOM_SLOTS[m.mode];
+    const html = [];
+    const teamLabel = (t) => (m.mode === 'team' ? t : m.mode === 'duo' ? '' : { A: '1', B: '2', C: '3', D: '4' }[t]);
+    for (const s of slots) {
+      const c = getCharacter(s.char);
+      html.push(`<div class="room-slot t${s.team}"><span class="team">${teamLabel(s.team)}</span>
+        <span class="nm">${s.name}${s.id === r.uid ? ' (나)' : ''}<small>${s.bot ? 'AI · ' : ''}${c.name}</small></span>
+        ${host && m.mode === 'team' ? `<button data-act="swap" data-id="${s.id}" title="팀 바꾸기">⇄</button>` : ''}
+        ${host && s.bot ? `<button class="del" data-act="del" data-id="${s.id}" title="AI 빼기">✕</button>` : ''}</div>`);
+    }
+    for (let i = slots.length; i < cap; i++) {
+      let team = '';
+      if (m.mode === 'team') { const a = slots.filter((s) => s.team === 'A').length; team = a < 2 ? 'A' : 'B'; }
+      html.push(`<div class="room-slot empty"><span class="nm">빈자리<small>친구를 기다리는 중</small></span>
+        ${host && m.mode !== 'duo' ? `<button class="add" data-act="add" data-team="${team}">+ AI</button>` : ''}</div>`);
+    }
+    const out = html.join('');
+    if (this._slotsHtml !== out) { this._slotsHtml = out; $('room-slots').innerHTML = out; }
   }
 
   updateStatus() {
@@ -125,19 +157,27 @@ export class RoomUI {
       const q = r.queueInfo;
       text = `${MODE_NAMES[m.mode]} 매칭 중… ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}` + (q ? ` · ${q.waiting}/${q.need}명` : '');
     } else if (m.state === 'playing') text = '경기 시작!';
-    else if (!r.friendUid) text = r.isHost ? '친구에게 방 코드를 알려 주세요 — 친구를 기다리는 중…' : '방장을 기다리는 중…';
-    else if (r.isHost) text = m.mode === 'duel' ? '모드를 고르고 [시작]을 누르세요' : `[매칭 시작]을 누르면 ${TEAM_SIZE[m.mode]}대${TEAM_SIZE[m.mode]} 상대를 찾습니다`;
-    else text = `방장이 모드를 고르는 중… (현재: ${MODE_NAMES[m.mode]})`;
+    else if (m.mode === 'duo') text = r.isHost ? `[매칭 시작]을 누르면 2대2 상대를 찾습니다 (사람만)` : '방장이 매칭을 시작하기를 기다리는 중…';
+    else {
+      const need = ROOM_SLOTS[m.mode], have = r.slots.length;
+      if (have < need) text = r.isHost ? `${MODE_NAMES[m.mode]} · ${need - have}자리 비었음 — 친구에게 코드를 알려 주거나 [+ AI]를 누르세요` : `${MODE_NAMES[m.mode]} · 사람을 기다리는 중… (${have}/${need})`;
+      else if (have > need) text = `인원이 너무 많습니다 — ${MODE_NAMES[m.mode]}은 ${need}명입니다`;
+      else text = r.isHost ? `${MODE_NAMES[m.mode]} 준비 완료 — [시작]을 누르세요` : `${MODE_NAMES[m.mode]} · 방장이 시작하기를 기다리는 중…`;
+    }
     if (el.textContent !== text) el.textContent = text;
   }
 
   stageEntries() {
-    const r = this.room;
-    const me = r.players[r.uid] || { char: save.character, name: save.name };
-    const f = r.friend;
-    const hostTag = (uid) => (r.meta?.host === uid ? '방장' : '');
-    const out = [{ charId: me.char, name: me.name, tag: ['나', hostTag(r.uid)].filter(Boolean).join(' · ') }];
-    out.push(f ? { charId: f.char, name: f.name, tag: hostTag(r.friendUid) || '친구' } : { placeholder: true, name: '친구를 기다리는 중…' });
+    const r = this.room, m = r.meta || {};
+    const hostTag = (uid) => (m.host === uid ? '방장' : '');
+    const slots = r.slots;
+    if (!slots.length) slots.push({ id: r.uid, char: save.character, name: save.name, team: 'A' });
+    const out = slots.map((s) => ({
+      charId: s.char, name: s.name,
+      tag: s.bot ? 'AI' : [s.id === r.uid ? '나' : '친구', hostTag(s.id)].filter(Boolean).join(' · '),
+    }));
+    const cap = m.mode === 'duo' ? 2 : ROOM_SLOTS[m.mode] || 2;
+    while (out.length < cap) out.push({ placeholder: true, name: '빈자리' });
     return out;
   }
 

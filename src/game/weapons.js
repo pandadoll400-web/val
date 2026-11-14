@@ -29,7 +29,21 @@ const CAST_STYLES = {
   ink: { core: '#6a4dff', shell: '#1d0f6b', glow: '#3a2bd8', spark: ['#7a5cff', '#20d0ff'], light: '#5a4dff' },
   glitch: { core: '#5dffb0', shell: '#8a3dff', glow: '#39ff9e', spark: ['#39ff9e', '#b47bff'], light: '#9a5cff' },
   echo: { core: '#ffe3f4', shell: '#ff5fb8', glow: '#ff7ad0', spark: ['#ff9fdc', '#b47bff'], light: '#ff7ad0' },
+  bloom: { core: '#f4ffd0', shell: '#6fdc4a', glow: '#ff8fd0', spark: ['#b6ff6a', '#ff9fdc'], light: '#9dff7a' },
 };
+
+/** Bloom's glowing seed held in the palm (arm-local units) */
+export function makeSeed(fx, color = '#9dff5a') {
+  const g = new THREE.Group();
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.015, 14, 10), new THREE.MeshStandardMaterial({ color: '#7a4a22', roughness: 0.6, emissive: '#3a1a08', emissiveIntensity: 0.3 }));
+  shell.scale.set(0.85, 1.25, 0.85);
+  const sprout = new THREE.Mesh(new THREE.ConeGeometry(0.006, 0.022, 6), new THREE.MeshBasicMaterial({ color }));
+  sprout.position.y = 0.024;
+  const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 6), new THREE.MeshBasicMaterial({ color }));
+  leaf.scale.set(1.6, 0.4, 0.8); leaf.position.set(0.008, 0.026, 0); leaf.rotation.z = -0.5;
+  g.add(shell, sprout, leaf, fx.glowSprite(color, 0.09));
+  return g;
+}
 
 /** glowing music note (eighth note) used by Echo; units match the arm-local orb */
 export function makeNote(fx, color) {
@@ -228,6 +242,14 @@ export class WeaponSystem {
     this.castArm.add(this.noteR);
     this.castArmL.add(this.noteL);
     this.noteR.visible = this.noteL.visible = false;
+    // Bloom seeds
+    this.seedR = makeSeed(game.effects, '#9dff5a');
+    this.seedL = makeSeed(game.effects, '#ff8fd0');
+    this.seedR.position.set(0, 0.07, -0.03);
+    this.seedL.position.set(0, 0.07, -0.03);
+    this.castArm.add(this.seedR);
+    this.castArmL.add(this.seedL);
+    this.seedR.visible = this.seedL.visible = false;
     this.leftOrb = new THREE.Group();
     const lCore = new THREE.Mesh(new THREE.SphereGeometry(0.024, 20, 16), new THREE.MeshBasicMaterial({ color: '#d8f4ff' }));
     const lShell = new THREE.Mesh(new THREE.IcosahedronGeometry(0.038, 1),
@@ -341,6 +363,22 @@ export class WeaponSystem {
     return true;
   }
 
+  /** Bloom Q: right hand shows a seed and pushes it down into the ground (onFire when planted) */
+  playSeedPlant(onFire) {
+    if (this.echo || this.casting) return false;
+    this.echo = { kind: 'plant', t: 0, dur: 0.9, fired: false, onFire };
+    this.startCast('bloom');
+    return true;
+  }
+
+  /** Bloom E: a seed in each hand, both tossed forward (onFire at the throw) */
+  playSeedToss(onFire) {
+    if (this.echo || this.casting) return false;
+    this.echo = { kind: 'seeds', t: 0, dur: 0.85, fired: false, onFire };
+    this.startCast('bloom');
+    return true;
+  }
+
   /** world-space position of the orb in the hand (for spawning the projectile) */
   orbWorld(obj = this.orb) {
     const v = obj.getWorldPosition(new THREE.Vector3());
@@ -358,7 +396,41 @@ export class WeaponSystem {
     const k = Math.min(1, e.t / e.dur);
     const p = this.game.player;
     const bob = Math.abs(Math.sin(p.bobPhase)) * 0.008;
-    if (e.kind === 'insert') {
+    if (e.kind === 'plant') {
+      // right hand: holds the seed up, then stabs it down toward the floor
+      const c = smooth(Math.min(1, this.castT));
+      this.castArm.visible = p.alive && c > 0.02;
+      this.castArm.scale.setScalar(VM_SCALE);
+      this.orb.visible = false; this.orbLight.intensity = 0.8;
+      const pos = kf([[0, [0.16, -0.6, -0.46]], [0.3, [0.1, -0.2, -0.46]], [0.5, [0.08, -0.17, -0.48]], [0.68, [0.06, -0.5, -0.56]], [1, [0.14, -0.7, -0.46]]], k);
+      const rot = kf([[0, [0.5, -0.2, 0.1]], [0.3, [0.32, -0.22, 0.1]], [0.5, [0.2, -0.2, 0.1]], [0.68, [-0.9, -0.1, 0.05]], [1, [-0.4, -0.2, 0.1]]], k);
+      this.castArm.position.set(pos[0], pos[1] - bob, pos[2]);
+      this.castArm.rotation.set(rot[0], rot[1], rot[2]);
+      this.seedR.visible = this.castArm.visible && k < 0.66;
+      this.seedR.rotation.y += dt * 3;
+      this.seedR.scale.setScalar(1.2 + Math.sin(e.t * 10) * 0.08);
+      if (!e.fired && k >= 0.66) { e.fired = true; e.onFire?.(); }
+      if (k >= 0.7) this.casting = false;
+    } else if (e.kind === 'seeds') {
+      // both hands hold a seed, then flick them forward (one for me, one for a team mate)
+      const c = smooth(Math.min(1, this.castT));
+      const vis = p.alive && c > 0.02;
+      this.castArm.visible = this.castArmL.visible = vis;
+      this.castArm.scale.setScalar(VM_SCALE); this.castArmL.scale.setScalar(VM_SCALE);
+      this.orb.visible = false; this.orbLight.intensity = 0.6;
+      const spread = kf([[0, 0.17], [0.35, 0.12], [0.55, 0.1], [0.7, 0.2], [1, 0.22]], k);
+      const fwd = kf([[0, -0.46], [0.5, -0.46], [0.65, -0.58], [1, -0.5]], k);
+      const y = -0.45 + 0.27 * c - bob;
+      this.castArm.position.set(spread, y, fwd);
+      this.castArmL.position.set(-spread, y, fwd);
+      const flick = kf([[0, 0.32], [0.55, 0.4], [0.68, -0.3], [1, 0.1]], k);
+      this.castArm.rotation.set(flick, -0.22, 0.1);
+      this.castArmL.rotation.set(flick, 0.22, -0.1);
+      this.seedR.visible = this.seedL.visible = vis && k < 0.64;
+      this.seedR.rotation.y += dt * 4; this.seedL.rotation.y -= dt * 4;
+      if (!e.fired && k >= 0.64) { e.fired = true; e.onFire?.(); }
+      if (k >= 0.7) this.casting = false;
+    } else if (e.kind === 'insert') {
       // left hand: rises from the bottom-left holding a note, then pushes it into the gun
       this.leftArm.visible = false;
       this.castArmL.visible = p.alive;
@@ -422,6 +494,7 @@ export class WeaponSystem {
       this.echo = null;
       this.castArmL.visible = false;
       this.noteR.visible = this.noteL.visible = false;
+      this.seedR.visible = this.seedL.visible = false;
       this.orb.visible = true;
       this.leftOrb.visible = false;
       if (!this.casting) this.castArm.visible = false;
