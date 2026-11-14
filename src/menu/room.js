@@ -129,17 +129,18 @@ export class RoomUI {
     const r = this.room, m = r.meta, host = r.isHost && m.state === 'lobby';
     const cap = m.mode === 'duo' ? Math.max(2, slots.length) : ROOM_SLOTS[m.mode];
     const html = [];
-    const teamLabel = (t) => (m.mode === 'team' ? t : m.mode === 'duo' ? '' : { A: '1', B: '2', C: '3', D: '4' }[t]);
+    const teamMode = m.mode === 'team' || m.mode === 'dom';
+    const teamLabel = (t) => (teamMode ? t : m.mode === 'duo' ? '' : { A: '1', B: '2', C: '3', D: '4' }[t]);
     for (const s of slots) {
       const c = getCharacter(s.char);
       html.push(`<div class="room-slot t${s.team}"><span class="team">${teamLabel(s.team)}</span>
         <span class="nm">${s.name}${s.id === r.uid ? ' (나)' : ''}<small>${s.bot ? 'AI · ' : ''}${c.name}</small></span>
-        ${host && m.mode === 'team' ? `<button data-act="swap" data-id="${s.id}" title="팀 바꾸기">⇄</button>` : ''}
+        ${host && teamMode ? `<button data-act="swap" data-id="${s.id}" title="팀 바꾸기">⇄</button>` : ''}
         ${host && s.bot ? `<button class="del" data-act="del" data-id="${s.id}" title="AI 빼기">✕</button>` : ''}</div>`);
     }
     for (let i = slots.length; i < cap; i++) {
       let team = '';
-      if (m.mode === 'team') { const a = slots.filter((s) => s.team === 'A').length; team = a < 2 ? 'A' : 'B'; }
+      if (teamMode) { const a = slots.filter((s) => s.team === 'A').length; team = a < 2 ? 'A' : 'B'; }
       html.push(`<div class="room-slot empty"><span class="nm">빈자리<small>친구를 기다리는 중</small></span>
         ${host && m.mode !== 'duo' ? `<button class="add" data-act="add" data-team="${team}">+ AI</button>` : ''}</div>`);
     }

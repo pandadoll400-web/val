@@ -276,6 +276,39 @@ function addWater(w, pools, color, islands = []) {
   w.waterMat = mat;
 }
 
+/** frozen lake surface: walkable ice (no slow-down, icy footsteps), drawn with cracks */
+function iceTexture() {
+  const S = 512, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(S / 2, S / 2, 20, S / 2, S / 2, S / 1.4);
+  grd.addColorStop(0, '#9fd2ea'); grd.addColorStop(1, '#d8eef8');
+  g.fillStyle = grd; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 2200; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.35})`; g.fillRect(Math.random() * S, Math.random() * S, 2, 2); }
+  g.lineCap = 'round';
+  for (let i = 0; i < 26; i++) {
+    let x = Math.random() * S, y = Math.random() * S;
+    g.strokeStyle = `rgba(255,255,255,${0.35 + Math.random() * 0.4})`; g.lineWidth = 1 + Math.random() * 1.5;
+    g.beginPath(); g.moveTo(x, y);
+    for (let k = 0; k < 7; k++) { x += (Math.random() - 0.5) * 90; y += (Math.random() - 0.5) * 90; g.lineTo(x, y); }
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(3, 4);
+  return t;
+}
+function addIce(w, sheet) {
+  const m = new THREE.Mesh(new THREE.CircleGeometry(1, 56), new THREE.MeshStandardMaterial({ map: iceTexture(), roughness: 0.08, metalness: 0.15, envMapIntensity: 1.6 }));
+  m.rotation.x = -Math.PI / 2;
+  m.scale.set(sheet.rx, sheet.rz, 1);
+  m.position.set(sheet.x, 0.02, sheet.z);
+  m.receiveShadow = true;
+  w.scene.add(m);
+  w.ice.push(sheet);
+}
+
 function plankBridge(w, x, z, len, alongX, width = 3, h = 0.4) {
   const tex = shared.plankTex ||= plankTexture('#8a6440');
   const m = shared.plank ||= Object.assign(new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 }), { _shared: true });
@@ -295,9 +328,130 @@ function scatter(w, n, seed, fn, avoid = 1.6) {
   const rng = mulberry32(seed);
   let placed = 0, guard = 0;
   while (placed < n && guard++ < n * 40) {
-    const x = (rng() - 0.5) * 64, z = (rng() - 0.5) * 160;
-    if (w.blockedAt(x, z, avoid) || w.inWater(x, z) || Math.abs(z) > 66 && Math.abs(x) < 9) continue;
+    const x = (rng() - 0.5) * (w.halfW * 2 - 4), z = (rng() - 0.5) * (w.halfL * 2 - 8);
+    if (w.blockedAt(x, z, avoid) || w.inWater(x, z) || w.onIce(x, z) || Math.abs(z) > 66 && Math.abs(x) < 9) continue;
     if (fn(x, z, rng) !== false) placed++;
+  }
+}
+
+const snowPine = (rng, s) => makePine(rng, s, true);
+
+/* ---------- campsite pieces ---------- */
+function addTent(w, x, z, rot, color) {
+  const cloth = smat('tent' + color, { color, roughness: 0.85, side: THREE.DoubleSide, flatShading: true });
+  const g = new THREE.Group();
+  const shape = new THREE.Shape([new THREE.Vector2(-1.25, 0), new THREE.Vector2(1.25, 0), new THREE.Vector2(0, 1.6)]);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 2.6, bevelEnabled: false });
+  geo.translate(0, 0, -1.3);
+  g.add(new THREE.Mesh(geo, cloth));
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1.0), smat('tentDoor', { color: '#2a2018', roughness: 1, side: THREE.DoubleSide }));
+  door.position.set(0, 0.5, 1.31);
+  g.add(door);
+  g.position.set(x, 0, z);
+  g.rotation.y = rot;
+  g.traverse((m) => { if (m.isMesh) { m.castShadow = true; w.solids.push(m); w.cover.push(m); } });
+  w.scene.add(g);
+  const along = Math.abs(Math.sin(rot)) > 0.7;
+  const hx = along ? 1.3 : 1.1, hz = along ? 1.1 : 1.3;
+  w.addCollider(new THREE.Box3(new THREE.Vector3(x - hx, 0, z - hz), new THREE.Vector3(x + hx, 1.7, z + hz)));
+}
+
+function addCampfire(w, x, z, big = false) {
+  const s = big ? 1.4 : 1;
+  const stone = smat('fireStone', { color: '#7a7470', roughness: 0.9, flatShading: true });
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22 * s, 0), stone);
+    r.position.set(x + Math.cos(a) * 0.85 * s, 0.12, z + Math.sin(a) * 0.85 * s);
+    w.scene.add(r);
+  }
+  const logM = smat('fireLog', { color: '#4a2e18', roughness: 0.95 });
+  for (let i = 0; i < 4; i++) {
+    const l = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * s, 0.08 * s, 1.1 * s, 6), logM);
+    l.position.set(x, 0.25 * s, z); l.rotation.set(0.9, (i / 4) * Math.PI * 2, 0, 'YXZ');
+    w.scene.add(l);
+  }
+  const flameM = new THREE.MeshBasicMaterial({ color: '#ffb23a', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+  const flames = [];
+  for (let i = 0; i < 3; i++) {
+    const f = new THREE.Mesh(new THREE.ConeGeometry((0.35 - i * 0.08) * s, (1.1 - i * 0.2) * s, 7), i ? flameM : new THREE.MeshBasicMaterial({ color: '#ff6a1a', transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false }));
+    f.position.set(x, 0.55 * s, z);
+    w.scene.add(f); flames.push(f);
+  }
+  const light = new THREE.PointLight('#ff9a4a', big ? 40 : 18, big ? 16 : 10, 1.3);
+  light.position.set(x, 1.3 * s, z);
+  w.scene.add(light);
+  w.flickers.push({ light, flames, base: light.intensity, s });
+  w.addCollider(new THREE.Box3(new THREE.Vector3(x - 0.7 * s, 0, z - 0.7 * s), new THREE.Vector3(x + 0.7 * s, 0.45, z + 0.7 * s)));
+}
+
+function addPicnicTable(w, x, z, alongX) {
+  const wood = smat('picnic', { color: '#9a6a3a', roughness: 0.85 });
+  const W = alongX ? 2.2 : 0.9, D = alongX ? 0.9 : 2.2;
+  w.addBlock(x, 0.7, z, W, 0.08, D, wood);
+  for (const s of [-1, 1]) {
+    if (alongX) w.addBlock(x, 0.4, z + s * 0.75, 2.2, 0.06, 0.32, wood); else w.addBlock(x + s * 0.75, 0.4, z, 0.32, 0.06, 2.2, wood);
+  }
+  w.addCollider(new THREE.Box3(new THREE.Vector3(x - W / 2, 0, z - D / 2), new THREE.Vector3(x + W / 2, 0.78, z + D / 2)));
+}
+
+function addStringLights(w, a, b) {
+  const post = smat('lightPost', { color: '#3a2a1a', roughness: 0.9 });
+  for (const p of [a, b]) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 3.2, 6), post);
+    m.position.set(p[0], 1.6, p[1]); w.scene.add(m);
+  }
+  const cols = ['#ffd27a', '#ff8fd0', '#8fd8ff', '#b6ff7a'];
+  const n = 14;
+  for (let i = 1; i < n; i++) {
+    const t = i / n;
+    const x = a[0] + (b[0] - a[0]) * t, z = a[1] + (b[1] - a[1]) * t, y = 3.1 - Math.sin(t * Math.PI) * 0.7;
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), new THREE.MeshBasicMaterial({ color: cols[i % 4] }));
+    bulb.position.set(x, y, z);
+    w.scene.add(bulb);
+  }
+}
+
+/** capture zone marker (flag, ground ring, letter); recoloured by the domination mode */
+function addZone(w, id, x, z, r = 5) {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 5, 8), smat('flagPole', { color: '#d8d8e0', metalness: 0.6, roughness: 0.3 }));
+  pole.position.y = 2.5;
+  const flagGeo = new THREE.PlaneGeometry(1.6, 1, 12, 4);
+  flagGeo.translate(0.8, 0, 0);
+  const flagMat = new THREE.MeshStandardMaterial({ color: '#f2f2f2', roughness: 0.8, side: THREE.DoubleSide, emissive: '#ffffff', emissiveIntensity: 0.15 });
+  const flag = new THREE.Mesh(flagGeo, flagMat);
+  flag.position.y = 4.4;
+  const ringMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.45, side: THREE.DoubleSide, depthWrite: false });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(r - 0.25, r, 64), ringMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.05;
+  const fillMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false });
+  const fill = new THREE.Mesh(new THREE.RingGeometry(0.2, r - 0.3, 48, 1, 0, 0.001), fillMat);
+  fill.rotation.x = -Math.PI / 2; fill.position.y = 0.06;
+  // letter on a sprite above the flag
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const cg = c.getContext('2d');
+  cg.font = '900 96px sans-serif'; cg.textAlign = 'center'; cg.textBaseline = 'middle';
+  cg.lineWidth = 10; cg.strokeStyle = 'rgba(0,0,0,.6)'; cg.strokeText(id, 64, 68); cg.fillStyle = '#fff'; cg.fillText(id, 64, 68);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const letter = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  letter.scale.set(1.4, 1.4, 1); letter.position.y = 5.8; letter.renderOrder = 9;
+  g.add(pole, flag, ring, fill, letter);
+  w.scene.add(g);
+  w.zones.push({ id, x, z, r, flag, flagMat, ringMat, fill, fillMat, basePos: flagGeo.attributes.position.array.slice(), prog: -1 });
+}
+
+/** zone visuals: owner colour, capture progress ring */
+export function setZoneVisual(zone, ownerColor, capColor, prog) {
+  zone.flagMat.color.set(ownerColor); zone.flagMat.emissive.set(ownerColor);
+  zone.ringMat.color.set(ownerColor);
+  zone.fillMat.color.set(capColor);
+  const p = Math.round(Math.max(0, Math.min(1, prog)) * 60) / 60;
+  if (p !== zone.prog) {
+    zone.prog = p;
+    zone.fill.geometry.dispose();
+    zone.fill.geometry = new THREE.RingGeometry(0.2, zone.r - 0.3, 48, 1, Math.PI / 2, Math.max(0.001, p * Math.PI * 2));
   }
 }
 
@@ -439,14 +593,16 @@ export const MAP_LAYOUTS = {
     const boatWall = new THREE.MeshStandardMaterial({ map: plankTexture(T.wall), roughness: 0.85 });
     const boatRoof = new THREE.MeshStandardMaterial({ color: T.roof, roughness: 0.7, flatShading: true });
     const islands = [{ x: -8, z: -12, r: 4.6 }, { x: 9, z: 15, r: 4.2 }];
-    addWater(w, [{ x: 0, z: 0, rx: 23, rz: 36 }], T.river, islands);
+    // the lake is frozen solid; only three holes in the ice are open water
+    addIce(w, { x: 0, z: 0, rx: 23, rz: 36 });
+    addWater(w, [{ x: 10, z: -16, rx: 4, rz: 3 }, { x: -12, z: 14, rx: 3.5, rz: 4.5 }, { x: 4, z: 28, rx: 3, rz: 2.4 }], T.river, islands);
     // islands
-    const sand = smat('islandSand', { color: '#b9b07a', roughness: 1 });
+    const sand = smat('islandSnow', { color: '#eef5fb', roughness: 1 });
     for (const is of islands) {
       const m = new THREE.Mesh(new THREE.CylinderGeometry(is.r, is.r + 0.6, 0.5, 24), sand);
       m.position.set(is.x, 0.1, is.z); m.receiveShadow = true;
       w.scene.add(m);
-      addTree(w, is.x + 0.8, is.z - 0.6, makePine, 1.1);
+      addTree(w, is.x + 0.8, is.z - 0.6, snowPine, 1.1);
       w.addRock(is.x - 1.6, 0, is.z + 1.2, 2.4, 1.8, 2.2);
     }
     // long plank bridge across the lake + a pier
@@ -469,7 +625,7 @@ export const MAP_LAYOUTS = {
     // shore rocks and pines
     for (const [x, z, s] of [[-28, 60, 4], [28, 62, 3.5], [-6, 52, 4.5], [10, 46, 3.5], [-28, -60, 4], [26, -58, 4], [4, -52, 5], [-12, -46, 3.5], [-30, 2, 3.5], [30, -4, 3.5]]) w.addRock(x, 0, z, s, s * 0.75, s);
     w.addCrate(-14, 0, 66, 2); w.addCrate(14, 0, 64, 2); w.addCrate(-12, 0, -68, 2); w.addCrate(14, 0, -66, 2); w.addCrate(15.8, 2, -66, 1.4);
-    for (const [x, z] of [[-20, 50], [20, 50], [-22, -52], [18, -46], [-30, 44], [30, -40], [24, 34], [-25, -26]]) addTree(w, x, z, makePine, 1.7);
+    for (const [x, z] of [[-20, 50], [20, 50], [-22, -52], [18, -46], [-30, 44], [30, -40], [24, 34], [-25, -26]]) addTree(w, x, z, snowPine, 1.7);
     // reeds along the shore
     for (let i = 0; i < 40; i++) {
       const a = (i / 40) * Math.PI * 2;
@@ -478,6 +634,62 @@ export const MAP_LAYOUTS = {
       const r = makeReeds(w.rng, 1.2); r.position.set(x, 0, z); w.scene.add(r);
     }
     scatter(w, 30, 51, (x, z, rng) => { const o = rng() < 0.6 ? makeFlowers(rng, 0.8) : makeBush(rng, 0.6); o.position.set(x, 0, z); w.scene.add(o); }, 1);
+  },
+
+  camp(w) {
+    w.teamSpawns = { A: [0, 64, 0], B: [0, -64, Math.PI], C: [44, 34, Math.PI / 2] };
+    const T = w.theme;
+    const cabinWall = new THREE.MeshStandardMaterial({ map: plankTexture(T.wall), roughness: 0.9 });
+    const cabinRoof = new THREE.MeshStandardMaterial({ color: T.roof, roughness: 0.95, flatShading: true });
+    const rvWall = new THREE.MeshStandardMaterial({ color: '#f2efe6', roughness: 0.5, metalness: 0.1 });
+    const rvRoof = new THREE.MeshStandardMaterial({ color: '#d8d4c8', roughness: 0.5 });
+    // three capture zones, the same distance from both bases
+    addZone(w, 'A', -30, 0); addZone(w, 'B', 0, 0); addZone(w, 'C', 30, 0);
+    // B: big campfire square with log benches, picnic tables and string lights
+    addCampfire(w, 0, 0, true);
+    addLog(w, 0, 3.4, 3, true, 0.3); addLog(w, 0, -3.4, 3, true, 0.3);
+    addPicnicTable(w, -8, 6, true); addPicnicTable(w, 8, -6, true); addPicnicTable(w, 8, 7, false); addPicnicTable(w, -8, -7, false);
+    addStringLights(w, [-9, 9], [9, 9]); addStringLights(w, [-9, -9], [9, -9]);
+    // A: log cabin + woodpile
+    addHouse(w, -42, 8, 8, 7, 3, { wallMat: cabinWall, roofMat: cabinRoof, door: 'e', gable: true, rug: '#8a2f2a', lamp: '#ffb860' });
+    addLog(w, -34, -8, 4, true, 0.35); addLog(w, -34, -8.7, 4, true, 0.35); addLog(w, -34, -8.35, 4, true, 0.35);
+    addTent(w, -24, 9, 0.2, '#e8572a'); addTent(w, -22, -9, Math.PI + 0.3, '#2a8ae8');
+    // C: pond with a canoe, tents
+    addWater(w, [{ x: 41, z: -6, rx: 6, rz: 8 }], '#3f6f7a');
+    const canoe = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.35, 4, 10, 1, false, 0, Math.PI), smat('canoe', { color: '#d8642a', roughness: 0.6 }));
+    canoe.rotation.set(Math.PI / 2, 0.4, Math.PI); canoe.position.set(34, 0.35, 10); canoe.castShadow = true;
+    w.scene.add(canoe); w.solids.push(canoe); w.cover.push(canoe);
+    w.addCollider(new THREE.Box3(new THREE.Vector3(33.2, 0, 8), new THREE.Vector3(34.8, 0.6, 12)));
+    addTent(w, 24, -9, Math.PI - 0.2, '#3fae4a'); addTent(w, 22, 9, -0.3, '#e8c02a');
+    addHouse(w, 42, -26, 7, 6, 3, { wallMat: cabinWall, roofMat: cabinRoof, door: 'w', gable: true, lamp: '#ffb860' });
+    // team bases: a camper van (walk in) + tents + campfire
+    for (const s of [1, -1]) {
+      const bz = 58 * s;
+      addHouse(w, -18, bz, 7.5, 3.6, 2.7, { wallMat: rvWall, roofMat: rvRoof, door: s > 0 ? 'n' : 's', windows: ['e', 'w'], lamp: '#fff0c0' });
+      for (const wx of [-20.5, -15.5]) for (const wz of [-1.9, 1.9]) {
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.3, 14), smat('tyre', { color: '#1a1a1a', roughness: 0.9 }));
+        wheel.rotation.x = Math.PI / 2; wheel.position.set(wx, 0.45, bz + wz); w.scene.add(wheel);
+      }
+      addTent(w, 14, bz - 4 * s, s > 0 ? 0 : Math.PI, s > 0 ? '#e85a8a' : '#5a7ae8');
+      addTent(w, 20, bz + 2 * s, s > 0 ? 0.4 : Math.PI + 0.4, '#f0a03a');
+      addCampfire(w, 4, bz + 2 * s);
+      w.addCrate(-8, 0, bz - 6 * s, 1.2); w.addCrate(-6.8, 0, bz - 6 * s, 1.2);  // coolers / supply boxes
+      addPicnicTable(w, 8, bz - 10 * s, true);
+    }
+    // mid-field cover between bases and zones
+    for (const [x, z] of [[-14, 30], [14, 28], [-14, -30], [14, -28], [-38, 34], [38, 32], [-38, -34], [38, -36]]) addLog(w, x, z, 5, (x > 0) === (z > 0), 0.45);
+    for (const [x, z, sz] of [[0, 24, 4], [0, -24, 4], [-24, 40, 3.5], [24, -40, 3.5], [-46, -14, 3], [46, 16, 3]]) w.addRock(x, 0, z, sz, sz * 0.7, sz);
+    // trees everywhere except the zones and the bases
+    const clear = (x, z) => w.zones.some((q) => Math.hypot(x - q.x, z - q.z) < q.r + 3) || Math.abs(z) > 50 && Math.abs(x) < 26;
+    const rng = mulberry32(88);
+    let n = 0;
+    for (let i = 0; i < 400 && n < 46; i++) {
+      const x = (rng() - 0.5) * 96, z = (rng() - 0.5) * 136;
+      if (clear(x, z) || w.blockedAt(x, z, 2.5) || w.inWater(x, z)) continue;
+      addTree(w, x, z, makeTree, 1.6 + rng() * 1.1);
+      n++;
+    }
+    scatter(w, 40, 71, (x, z, r) => { if (clear(x, z)) return false; const o = r() < 0.5 ? makeBush(r, 0.7 + r() * 0.5) : makeMushroom(r, 0.7 + r() * 0.6); o.position.set(x, 0, z); w.scene.add(o); }, 1.2);
   },
 
   desert(w) {

@@ -278,6 +278,335 @@ export const EMOTES = {
       });
     },
   },
+  /* ===== v1.5: lines + motions for the remaining characters ===== */
+  nitro: {
+    line: '속도가 곧 힘이지!', lang: 'ko-KR', pitch: 1.15, rate: 1.2, speakAt: 0.4, dur: 4.2, view: 0.5,
+    keys: [
+      [0, {}, {}],
+      [0.5, { torso: [0.45, 0, 0], neck: [-0.35, 0, 0], shL: [0.9, 0, -0.2], elL: [1.2, 0, 0], shR: [-0.6, 0, 0.2], elR: [0.6, 0, 0], legL: [0.9, 0, 0], knL: [-1.4, 0, 0], legR: [-0.5, 0, 0], knR: [-0.3, 0, 0] }, { y: -0.18 }],
+      [1.3, { torso: [0.45, 0, 0], neck: [-0.35, 0, 0], shL: [0.9, 0, -0.2], elL: [1.2, 0, 0], shR: [-0.6, 0, 0.2], elR: [0.6, 0, 0], legL: [0.9, 0, 0], knL: [-1.4, 0, 0], legR: [-0.5, 0, 0], knR: [-0.3, 0, 0] }, { y: -0.18 }],
+      [1.55, { torso: [0.35, 0, 0], shL: [-0.8, 0, -0.2], elL: [0.8, 0, 0], shR: [1.0, 0, 0.2], elR: [1.0, 0, 0], legL: [-0.6, 0, 0], knL: [-0.4, 0, 0], legR: [0.9, 0, 0], knR: [-1.0, 0, 0] }, { x: 0.9, y: 0.05 }],
+      [1.8, { torso: [0.35, 0, 0], shL: [1.0, 0, -0.2], elL: [1.0, 0, 0], shR: [-0.8, 0, 0.2], elR: [0.8, 0, 0], legL: [0.9, 0, 0], knL: [-1.0, 0, 0], legR: [-0.6, 0, 0], knR: [-0.4, 0, 0] }, { x: 1.6 }],
+      [2.4, { torso: [-0.1, 0, 0.1], shR: [2.7, 0, 0.3], elR: [0.2, 0, 0], legL: [0.2, 0, 0.1], legR: [-0.1, 0, -0.1] }, { x: 0.2, ry: -0.4 }],
+      [3.5, { torso: [-0.1, 0, 0.1], shR: [2.7, 0, 0.3], elR: [0.2, 0, 0], neck: [0.1, 0.3, 0], legL: [0.2, 0, 0.1], legR: [-0.1, 0, -0.1] }, { x: 0.2, ry: -0.4 }],
+      [4.2, {}, {}],
+    ],
+    setup(ctx) {
+      ctx.flames = [];
+      for (let i = 0; i < 26; i++) {
+        const f = glowSprite(i % 2 ? '#ff7a1a' : '#ffd23a', 0.35);
+        f.visible = false;
+        ctx.actorParent.add(f); ctx.props.push(f); ctx.flames.push(f);
+      }
+      ctx.boost = glowSprite('#ff8a2a', 0.6);
+      ctx.model.joints.torso.add(ctx.boost); ctx.boost.position.set(0, 0.45, 0.3); ctx.props.push(ctx.boost);
+      ctx.fi = 0;
+    },
+    update(ctx, t, dt) {
+      ctx.boost.material.opacity = t > 0.5 && t < 2.2 ? 0.7 + Math.random() * 0.3 : 0.15;
+      ctx.boost.scale.setScalar(t > 1.3 && t < 2.0 ? 1.1 : 0.5);
+      if (t > 1.3 && t < 2.1) {
+        // fire trail left behind the dash
+        const f = ctx.flames[ctx.fi++ % ctx.flames.length];
+        f.visible = true; f.position.set(-0.3 + (t - 1.3) * 2.2, 0.15, 0); f.userData.t = 0;
+      }
+      for (const f of ctx.flames) {
+        if (!f.visible) continue;
+        f.userData.t = (f.userData.t || 0) + dt;
+        f.position.y += dt * 0.6;
+        f.material.opacity = Math.max(0, 1 - f.userData.t / 0.9);
+        f.scale.setScalar(0.35 + f.userData.t * 0.4);
+        if (f.userData.t > 0.9) f.visible = false;
+      }
+    },
+  },
+
+  ghost: {
+    line: '...이미 네 뒤에 있어.', lang: 'ko-KR', pitch: 0.55, rate: 0.85, speakAt: 2.2, dur: 4.8, view: -0.3,
+    keys: [
+      [0, {}, {}],
+      [0.6, { shL: [0.4, 0, -1.3], elL: [0.3, 0, 0], shR: [0.4, 0, 1.3], elR: [0.3, 0, 0], neck: [0.25, 0, 0] }, {}],
+      [1.2, { shL: [0.4, 0, -1.3], elL: [0.3, 0, 0], shR: [0.4, 0, 1.3], elR: [0.3, 0, 0], neck: [0.25, 0, 0] }, { y: 0.1 }],
+      [1.9, { shL: [0.2, 0, -0.2], shR: [0.2, 0, 0.2] }, { x: -0.6, y: 0.1 }],
+      [2.6, { ...CROSS_ARMS, neck: [0.15, -0.4, 0] }, { x: 0.5, ry: 0.5 }],
+      [3.9, { ...CROSS_ARMS, neck: [0.1, -0.2, 0] }, { x: 0.5, ry: 0.4 }],
+      [4.8, {}, {}],
+    ],
+    setup(ctx) {
+      ctx.souls = [];
+      for (let i = 0; i < 4; i++) { const s = glowSprite('#b8e8ff', 0.25); ctx.actorParent.add(s); ctx.props.push(s); ctx.souls.push(s); }
+      ctx.mats = ctx.model.allMaterials || [];
+      ctx.mats.forEach((m) => { m.userData.op = m.opacity; m.userData.tr = m.transparent; m.transparent = true; m.needsUpdate = true; });
+    },
+    update(ctx, t) {
+      // fade out while vanishing, reappear at the side
+      const op = t < 1.2 ? 1 : t < 1.7 ? 1 - (t - 1.2) / 0.5 * 0.92 : t < 2.4 ? 0.08 : t < 2.9 ? 0.08 + (t - 2.4) / 0.5 * 0.92 : 1;
+      ctx.mats.forEach((m) => { m.opacity = op * (m.userData.op ?? 1); });
+      ctx.souls.forEach((s, i) => {
+        const a = t * 2.4 + (i / 4) * Math.PI * 2;
+        s.position.set(Math.cos(a) * 0.55 + ctx.model.group.parent.position.x, 1.1 + Math.sin(t * 3 + i) * 0.25, Math.sin(a) * 0.55);
+        s.material.opacity = 0.5 + Math.sin(t * 5 + i) * 0.3;
+      });
+    },
+    cleanup(ctx) { ctx.mats.forEach((m) => { m.opacity = m.userData.op ?? 1; m.transparent = !!m.userData.tr; m.needsUpdate = true; }); },
+  },
+
+  echo: {
+    line: '이 비트에 맞춰 쓰러져!', lang: 'ko-KR', pitch: 1.3, rate: 1.1, speakAt: 0.5, dur: 4.6, view: 0.2,
+    keys: (() => {
+      const k = [[0, {}, {}]];
+      const head = { shL: [2.4, 0, -0.9], elL: [1.9, 0, 0], shR: [2.4, 0, 0.9], elR: [1.9, 0, 0] };
+      for (let i = 0; i < 7; i++) {
+        const tt = 0.45 + i * 0.5;
+        k.push([tt, { ...head, neck: [0.3, 0, 0], torso: [0.08, 0, i % 2 ? 0.06 : -0.06], knL: [-0.35, 0, 0], knR: [-0.35, 0, 0], legL: [0.2, 0, 0], legR: [0.2, 0, 0] }, { y: -0.08, rz: i % 2 ? 0.04 : -0.04 }]);
+        k.push([tt + 0.25, { ...head, neck: [-0.15, 0, 0], torso: [0, 0, 0] }, { y: 0 }]);
+      }
+      k.push([4.0, { ...FINGER_GUN, shL: [0.3, 0, -0.3] }, {}]);
+      k.push([4.6, {}, {}]);
+      return k;
+    })(),
+    setup(ctx) {
+      ctx.notes = [];
+      const cols = ['#ff5fb8', '#c9a2ff', '#7fd8ff'];
+      for (let i = 0; i < 9; i++) {
+        const n = new THREE.Group();
+        const m = new THREE.MeshBasicMaterial({ color: cols[i % 3], transparent: true });
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), m); head.scale.set(1.3, 0.9, 0.7);
+        const stem = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.17, 0.012), m); stem.position.set(0.055, 0.085, 0);
+        const flag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.02, 0.012), m); flag.position.set(0.085, 0.16, 0); flag.rotation.z = -0.6;
+        n.add(head, stem, flag, glowSprite(cols[i % 3], 0.25));
+        n.visible = false; n.userData.t = -1;
+        ctx.actorParent.add(n); ctx.props.push(n); ctx.notes.push(n);
+      }
+      ctx.ni = 0; ctx.next = 0.45;
+    },
+    update(ctx, t, dt) {
+      if (t >= ctx.next && t < 4.0) {
+        ctx.next += 0.5;
+        const n = ctx.notes[ctx.ni++ % ctx.notes.length];
+        n.visible = true; n.userData.t = 0; n.userData.dx = (Math.random() - 0.5) * 0.8;
+        n.position.set((Math.random() < 0.5 ? -0.25 : 0.25), 1.75, 0.1);
+      }
+      for (const n of ctx.notes) {
+        if (n.userData.t < 0) continue;
+        n.userData.t += dt;
+        n.position.y += dt * 0.6; n.position.x += n.userData.dx * dt;
+        n.rotation.z = Math.sin(n.userData.t * 6) * 0.3;
+        n.children.forEach((c) => { if (c.material) c.material.opacity = Math.max(0, 1 - n.userData.t / 1.6); });
+        if (n.userData.t > 1.6) { n.visible = false; n.userData.t = -1; }
+      }
+    },
+  },
+
+  glitch: {
+    line: '시스템... 오류... 너 말이야.', lang: 'ko-KR', pitch: 0.7, rate: 0.9, speakAt: 0.8, dur: 4.6, view: -0.2,
+    keys: [
+      [0, {}, {}],
+      [0.4, { neck: [0.1, 0.5, 0.3], shR: [0.5, 0, 0.9], elR: [1.4, 0, 0] }, {}],
+      [1.0, { neck: [-0.1, -0.5, -0.3], shL: [0.5, 0, -0.9], elL: [1.4, 0, 0] }, { x: -0.5 }],
+      [1.6, { neck: [0.2, 0.3, 0.4], torso: [0, 0.4, 0] }, { x: 0.45 }],
+      [2.2, { neck: [0, 0, 0], ...FINGER_GUN }, { x: 0 }],
+      [3.6, { neck: [0.05, 0, 0.1], ...FINGER_GUN }, {}],
+      [4.6, {}, {}],
+    ],
+    setup(ctx) {
+      ctx.cubes = [];
+      for (let i = 0; i < 18; i++) {
+        const c = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.07), addMat(i % 2 ? '#39ff9e' : '#b47bff'));
+        c.visible = false;
+        ctx.actorParent.add(c); ctx.props.push(c); ctx.cubes.push(c);
+      }
+      ctx.mats = ctx.model.allMaterials || [];
+      ctx.mats.forEach((m) => { m.userData.tr = m.transparent; m.userData.op = m.opacity; m.transparent = true; m.needsUpdate = true; });
+      ctx.lastJump = 0;
+    },
+    update(ctx, t, dt) {
+      // digital flicker: the body blinks while it teleports
+      const glitching = (t > 0.8 && t < 1.15) || (t > 1.45 && t < 1.75);
+      const op = glitching ? (Math.random() < 0.5 ? 0.15 : 1) : 1;
+      ctx.mats.forEach((m) => { m.opacity = op * (m.userData.op ?? 1); });
+      if (glitching && t - ctx.lastJump > 0.08) {
+        ctx.lastJump = t;
+        for (const c of ctx.cubes) {
+          if (c.visible) continue;
+          c.visible = true; c.userData.t = 0;
+          c.position.set(ctx.model.group.parent.position.x + (Math.random() - 0.5) * 0.7, 0.3 + Math.random() * 1.5, (Math.random() - 0.5) * 0.4);
+          c.userData.v = new THREE.Vector3((Math.random() - 0.5) * 1.5, Math.random() * 0.8, (Math.random() - 0.5) * 1.2);
+          break;
+        }
+      }
+      for (const c of ctx.cubes) {
+        if (!c.visible) continue;
+        c.userData.t += dt;
+        c.position.addScaledVector(c.userData.v, dt);
+        c.rotation.x += dt * 5; c.rotation.y += dt * 4;
+        c.material.opacity = Math.max(0, 1 - c.userData.t / 1.2);
+        if (c.userData.t > 1.2) c.visible = false;
+      }
+    },
+    cleanup(ctx) { ctx.mats.forEach((m) => { m.opacity = m.userData.op ?? 1; m.transparent = !!m.userData.tr; m.needsUpdate = true; }); },
+  },
+
+  inker: {
+    line: '세상은 내 캔버스야.', lang: 'ko-KR', pitch: 1.05, rate: 1.0, speakAt: 0.4, dur: 4.6, view: 0.3,
+    keys: [
+      [0, {}, {}],
+      [0.5, { shR: [2.6, 0, 0.6], elR: [0.4, 0, 0], torso: [-0.1, 0.3, 0] }, {}],
+      [1.0, { shR: [1.2, 0, -0.2], elR: [0.2, 0, 0], torso: [0.15, -0.35, 0] }, { x: 0.05 }],
+      [1.5, { shR: [2.2, 0, 0.9], elR: [0.3, 0, 0], torso: [-0.05, 0.25, 0] }, {}],
+      [2.0, { shR: [1.0, 0, 0.1], elR: [0.3, 0, 0], torso: [0.2, -0.3, 0] }, {}],
+      [2.6, { shR: [0.6, 0, 0.2], elR: [1.6, 0, 0], shL: [0.4, 0, -0.5], elL: [1.6, 0, 0], neck: [0.1, 0.3, 0] }, {}],
+      [3.8, { shR: [0.6, 0, 0.2], elR: [1.6, 0, 0], shL: [0.4, 0, -0.5], elL: [1.6, 0, 0], neck: [0.05, 0.2, 0.1] }, {}],
+      [4.6, {}, {}],
+    ],
+    setup(ctx) {
+      // brush in the hand
+      const brush = new THREE.Group();
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.6, 8), new THREE.MeshStandardMaterial({ color: '#8a5a2a' }));
+      handle.position.y = -0.25;
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.18, 10), new THREE.MeshStandardMaterial({ color: '#5a3dff', emissive: '#3a1fd8', emissiveIntensity: 0.6 }));
+      tip.position.y = -0.62; tip.rotation.x = Math.PI;
+      brush.add(handle, tip);
+      ctx.model.joints.handR.add(brush); ctx.props.push(brush);
+      ctx.tip = tip;
+      ctx.dots = [];
+      for (let i = 0; i < 70; i++) {
+        const d = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshBasicMaterial({ color: i % 3 ? '#5a3dff' : '#20d0ff', transparent: true }));
+        d.visible = false;
+        ctx.actorParent.add(d); ctx.props.push(d); ctx.dots.push(d);
+      }
+      ctx.di = 0;
+    },
+    update(ctx, t) {
+      if (t > 0.5 && t < 2.1) {
+        // paint stroke hangs in the air where the brush passes
+        const p = new THREE.Vector3();
+        ctx.tip.getWorldPosition(p); ctx.actorParent.worldToLocal(p);
+        const d = ctx.dots[ctx.di++ % ctx.dots.length];
+        d.visible = true; d.position.copy(p); d.userData.t = t;
+      }
+      for (const d of ctx.dots) if (d.visible) d.material.opacity = Math.max(0, 1 - Math.max(0, t - 2.4) / 1.6);
+    },
+  },
+
+  inferno: {
+    line: '불과 물이... 내 손 안에.', lang: 'ko-KR', pitch: 0.7, rate: 0.9, speakAt: 0.6, dur: 4.6, view: 0,
+    keys: [
+      [0, {}, {}],
+      [0.6, { shL: [1.0, 0, -0.9], elL: [1.2, 0, 0], shR: [1.0, 0, 0.9], elR: [1.2, 0, 0], neck: [0.2, 0, 0] }, {}],
+      [1.8, { shL: [1.0, 0, -0.9], elL: [1.2, 0, 0], shR: [1.0, 0, 0.9], elR: [1.2, 0, 0], neck: [0.25, 0, 0] }, {}],
+      [2.3, { shL: [1.2, 0.5, -0.1], elL: [0.8, 0, 0], shR: [1.2, -0.5, 0.1], elR: [0.8, 0, 0], neck: [0.2, 0, 0] }, {}],
+      [2.6, { shL: [2.6, 0, -0.6], elL: [0.3, 0, 0], shR: [2.6, 0, 0.6], elR: [0.3, 0, 0], neck: [-0.2, 0, 0], torso: [-0.1, 0, 0] }, { y: 0.06 }],
+      [3.8, { shL: [0.3, 0, -0.4], shR: [0.3, 0, 0.4], neck: [0, 0, 0] }, {}],
+      [4.6, {}, {}],
+    ],
+    setup(ctx) {
+      const orb = (col, glow) => { const g = new THREE.Group(); g.add(new THREE.Mesh(new THREE.SphereGeometry(0.07, 14, 10), addMat(col)), glowSprite(glow, 0.45)); g.scale.setScalar(0.01); return g; };
+      ctx.fire = orb('#ffd25a', '#ff6a1a'); ctx.water = orb('#bfe9ff', '#2f8fff');
+      ctx.model.joints.handL.add(ctx.fire); ctx.model.joints.handR.add(ctx.water);
+      ctx.fire.position.y = ctx.water.position.y = -0.1;
+      ctx.props.push(ctx.fire, ctx.water);
+      ctx.puffs = [];
+      for (let i = 0; i < 16; i++) { const s = glowSprite('#ffffff', 0.5); s.visible = false; ctx.actorParent.add(s); ctx.props.push(s); ctx.puffs.push(s); }
+    },
+    update(ctx, t, dt) {
+      const grow = Math.min(1, Math.max(0, (t - 0.6) / 0.8));
+      const show = t < 2.4;
+      for (const o of [ctx.fire, ctx.water]) { o.visible = show; o.scale.setScalar(0.01 + grow * (1 + Math.sin(t * 9) * 0.08)); }
+      if (t >= 2.4 && !ctx.burst) {
+        ctx.burst = true;
+        ctx.puffs.forEach((s) => { s.visible = true; s.position.set(ctx.model.group.parent.position.x, 1.9, 0.1); s.userData.v = new THREE.Vector3((Math.random() - 0.5) * 1.6, Math.random() * 1.2, (Math.random() - 0.5) * 1.2); s.userData.t = 0; });
+      }
+      for (const s of ctx.puffs) {
+        if (!s.visible) continue;
+        s.userData.t += dt;
+        s.position.addScaledVector(s.userData.v, dt);
+        s.scale.setScalar(0.5 + s.userData.t * 1.4);
+        s.material.opacity = Math.max(0, 0.8 - s.userData.t / 1.8);
+      }
+    },
+  },
+
+  titan: {
+    line: '산은... 무너지지 않는다.', lang: 'ko-KR', pitch: 0.45, rate: 0.8, speakAt: 0.3, dur: 4.6, view: -0.15,
+    keys: [
+      [0, {}, {}],
+      [0.4, { shR: [1.3, 0, -0.6], elR: [1.9, 0, 0], neck: [-0.1, 0, 0] }, {}],
+      [0.6, { shR: [1.0, 0, -0.4], elR: [2.1, 0, 0] }, { y: -0.02 }],
+      [0.8, { shL: [1.3, 0, 0.6], elL: [1.9, 0, 0] }, {}],
+      [1.0, { shL: [1.0, 0, 0.4], elL: [2.1, 0, 0] }, { y: -0.02 }],
+      [1.6, { shL: [2.9, 0, -0.3], elL: [0.4, 0, 0], shR: [2.9, 0, 0.3], elR: [0.4, 0, 0], torso: [-0.2, 0, 0], neck: [-0.2, 0, 0] }, { y: 0.1 }],
+      [2.0, { shL: [0.9, 0, -0.2], elL: [0.4, 0, 0], shR: [0.9, 0, 0.2], elR: [0.4, 0, 0], torso: [0.55, 0, 0], legL: [0.6, 0, 0], knL: [-1.0, 0, 0], legR: [-0.3, 0, 0], knR: [-0.6, 0, 0] }, { y: -0.25 }],
+      [3.2, { shL: [0.9, 0, -0.2], elL: [0.4, 0, 0], shR: [0.9, 0, 0.2], elR: [0.4, 0, 0], torso: [0.5, 0, 0], legL: [0.6, 0, 0], knL: [-1.0, 0, 0], legR: [-0.3, 0, 0], knR: [-0.6, 0, 0] }, { y: -0.25 }],
+      [4.0, { shL: [0.2, 0, -0.5], shR: [0.2, 0, 0.5], elL: [0.3, 0, 0], elR: [0.3, 0, 0] }, {}],
+      [4.6, {}, {}],
+    ],
+    setup(ctx) {
+      ctx.rocks = [];
+      const rm = new THREE.MeshStandardMaterial({ color: '#8a7f72', roughness: 0.9, flatShading: true });
+      for (let i = 0; i < 16; i++) { const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.06 + Math.random() * 0.06, 0), rm); r.visible = false; ctx.actorParent.add(r); ctx.props.push(r); ctx.rocks.push(r); }
+      ctx.crack = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.18, 24), addMat('#ff7a1a', 0));
+      ctx.crack.rotation.x = -Math.PI / 2; ctx.crack.position.set(0, 0.02, 0.25);
+      ctx.actorParent.add(ctx.crack); ctx.props.push(ctx.crack);
+    },
+    update(ctx, t, dt) {
+      if (t >= 2.0 && !ctx.slam) {
+        ctx.slam = true;
+        ctx.rocks.forEach((r) => { r.visible = true; r.position.set(ctx.model.group.parent.position.x + (Math.random() - 0.5) * 0.3, 0.1, 0.3); r.userData.v = new THREE.Vector3((Math.random() - 0.5) * 3, 1.5 + Math.random() * 2, (Math.random() - 0.2) * 2); });
+      }
+      for (const r of ctx.rocks) {
+        if (!r.visible) continue;
+        r.userData.v.y -= 9 * dt;
+        r.position.addScaledVector(r.userData.v, dt);
+        if (r.position.y < 0.05) { r.position.y = 0.05; r.userData.v.set(0, 0, 0); }
+        r.rotation.x += dt * 6;
+      }
+      const k = t < 2.0 ? 0 : Math.min(1, (t - 2.0) * 3);
+      ctx.crack.scale.setScalar(1 + k * 5);
+      ctx.crack.material.opacity = t < 2.0 ? 0 : Math.max(0, 1 - (t - 2.0) / 2.2);
+    },
+  },
+
+  bloom: {
+    line: '피어나라, 생명이여.', lang: 'ko-KR', pitch: 1.2, rate: 0.95, speakAt: 1.6, dur: 5.0, view: 0.25,
+    keys: [
+      [0, {}, {}],
+      [0.5, { shR: [1.4, 0, 0.2], elR: [0.9, 0, 0], neck: [0.35, 0, 0] }, {}],
+      [1.1, { shR: [0.8, 0, 0.1], elR: [0.3, 0, 0], torso: [0.6, 0, 0], neck: [0.2, 0, 0], legL: [0.5, 0, 0], knL: [-1.1, 0, 0], legR: [-0.2, 0, 0], knR: [-1.3, 0, 0] }, { y: -0.3 }],
+      [1.6, { shR: [0.8, 0, 0.1], elR: [0.3, 0, 0], torso: [0.6, 0, 0], neck: [0.2, 0, 0], legL: [0.5, 0, 0], knL: [-1.1, 0, 0], legR: [-0.2, 0, 0], knR: [-1.3, 0, 0] }, { y: -0.3 }],
+      [2.2, { shL: [2.5, 0, -0.7], elL: [0.3, 0, 0], shR: [2.5, 0, 0.7], elR: [0.3, 0, 0], neck: [-0.25, 0, 0] }, { x: -0.25 }],
+      [4.2, { shL: [2.4, 0, -0.8], elL: [0.3, 0, 0], shR: [2.4, 0, 0.8], elR: [0.3, 0, 0], neck: [-0.2, 0.2, 0] }, { x: -0.25 }],
+      [5.0, {}, {}],
+    ],
+    setup(ctx) {
+      const tree = new THREE.Group();
+      const bark = new THREE.MeshStandardMaterial({ color: '#6a4426', roughness: 0.9, flatShading: true });
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.1, 0.9, 7), bark); trunk.position.y = 0.45;
+      tree.add(trunk);
+      const pink = new THREE.MeshStandardMaterial({ color: '#ff9fd8', emissive: '#ff5fb8', emissiveIntensity: 0.4, flatShading: true });
+      const green = new THREE.MeshStandardMaterial({ color: '#6fdc4a', emissive: '#2f8a1a', emissiveIntensity: 0.3, flatShading: true });
+      for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.17, 0), i % 3 ? pink : green); m.position.set(Math.cos(a) * 0.2, 0.95 + (i % 2) * 0.12, Math.sin(a) * 0.2); tree.add(m); }
+      tree.add(glowSprite('#b6ff6a', 1.0));
+      tree.position.set(0.35, 0, 0.35); tree.scale.setScalar(0.001);
+      ctx.actorParent.add(tree); ctx.props.push(tree); ctx.tree = tree;
+      ctx.petals = [];
+      for (let i = 0; i < 24; i++) { const p = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.04), addMat(i % 2 ? '#ff9fd8' : '#ffd0ec')); p.visible = false; ctx.actorParent.add(p); ctx.props.push(p); ctx.petals.push(p); }
+    },
+    update(ctx, t, dt) {
+      const g = t < 1.5 ? 0 : Math.min(1, (t - 1.5) / 0.8);
+      ctx.tree.scale.setScalar(0.001 + (1 - Math.pow(1 - g, 3)) * 1.0);
+      ctx.tree.position.x = 0.35 + ctx.model.group.parent.position.x * 0;
+      if (t > 2.2) {
+        for (const p of ctx.petals) {
+          if (!p.visible) { if (Math.random() < 0.08) { p.visible = true; p.position.set(0.35 + (Math.random() - 0.5) * 0.5, 1.2, 0.35 + (Math.random() - 0.5) * 0.4); p.userData.v = new THREE.Vector3((Math.random() - 0.5) * 0.6, -0.25 - Math.random() * 0.2, (Math.random() - 0.5) * 0.4); } continue; }
+          p.position.addScaledVector(p.userData.v, dt);
+          p.rotation.x += dt * 4; p.rotation.y += dt * 3;
+          if (p.position.y < 0) p.visible = false;
+        }
+      }
+    },
+  },
+
 };
 
 /** Plays an emote on a preview model. */

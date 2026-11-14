@@ -73,7 +73,7 @@ window.__room = room;
 const menuStage = new CharStage();
 
 // menu background cycles through the three maps every 15 s; the title follows
-const MENU_THEMES = ['ice', 'forest', 'honey', 'lake', 'desert'];
+const MENU_THEMES = ['ice', 'forest', 'honey', 'lake', 'desert', 'camp'];
 let menuThemeI = 0, menuThemeT = 0, fadeT = -1;
 const fadeEl = document.createElement('div');
 fadeEl.id = 'menu-fade';

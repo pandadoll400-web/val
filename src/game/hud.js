@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { getWeaponIcon } from './gunModels.js';
 import { getPortrait } from '../menu/ui.js';
 import { getCharacter } from '../data/characters.js';
-import { MODE_NAMES } from '../net/room.js';
+import { MODE_NAMES, CAPTURE_TIME } from '../net/room.js';
 
 const $ = (id) => document.getElementById(id);
 const getThemeName = (game) => game.mapName || '얼음 협곡';
@@ -37,6 +37,7 @@ export class HUD {
     $('scoreboard').classList.add('hidden');
     this.el.mode.textContent = `FROST CANYON · ${getThemeName(game)} · ` + (game.net ? MODE_NAMES[game.mode] : game.mode === 'training' ? '훈련장' : '섬멸전');
     this.buildVersus();
+    this.buildZones();
     $('hud-char').textContent = `${game.character.name} · ${game.character.title}`;
 
     this.el.slots.innerHTML = game.weapons.slots.map((s, i) => `
@@ -73,6 +74,29 @@ export class HUD {
     this.vsScores = [...bar.querySelectorAll('.vs-side')].map((el) => ({ team: el.dataset.team, el: el.querySelector('.vs-score') }));
     this.vsTime = bar.querySelector('.vs-time');
     this.vsTimer = bar.querySelector('.vs-timer');
+  }
+
+  /** domination: A / B / C chips at the top right (owner colour + capture progress) */
+  buildZones() {
+    const el = $('zone-hud'), g = this.game;
+    $('hud').classList.toggle('dom', !!g.dom);
+    if (!g.dom) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+    el.innerHTML = g.world.zones.map((z) => `<div class="zc" data-id="${z.id}"><b>${z.id}</b><div class="zbar"><i></i></div><span class="zt">0/${CAPTURE_TIME}초</span></div>`).join('');
+    el.classList.remove('hidden');
+    this.zoneEls = [...el.querySelectorAll('.zc')].map((c) => ({ c, bar: c.querySelector('.zbar i'), t: c.querySelector('.zt') }));
+  }
+
+  updateZones(st) {
+    if (!this.zoneEls || !st) return;
+    const g = this.game;
+    st.forEach((s, i) => {
+      const e = this.zoneEls[i];
+      if (!e) return;
+      const side = (t) => (t ? (t === g.myTeam ? 'ally' : 'enemy') : '');
+      e.c.className = `zc ${s.o ? 'own-' + side(s.o) : ''} ${s.c ? 'cap-' + side(s.c) : ''}`;
+      e.bar.style.width = (s.o && !s.p ? 100 : (s.p / CAPTURE_TIME) * 100) + '%';
+      e.t.textContent = s.c ? `${side(s.c) === 'ally' ? '점령 중' : '상대 점령 중'} ${Math.floor(s.p)}/${CAPTURE_TIME}초` : s.o ? (side(s.o) === 'ally' ? '우리 구역' : '상대 구역') : `0/${CAPTURE_TIME}초`;
+    });
   }
 
   updateVersus() {
@@ -255,6 +279,8 @@ export class HUD {
     this.el.vignette.style.opacity = 0;
     this.el.scope.classList.add('hidden');
     $('versus-bar').classList.add('hidden');
+    $('zone-hud').classList.add('hidden');
+    $('hud').classList.remove('dom');
     $('topcenter').classList.remove('net');
   }
 }

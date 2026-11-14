@@ -8,7 +8,7 @@ import { audio } from '../audio.js';
 const INTERP_DELAY = 110; // ms behind the newest data → always two snapshots to blend between
 const MAX_EXTRAP = 200;   // ms of extrapolation when packets are late
 
-export const F_CROUCH = 1, F_SLIDE = 2, F_INVIS = 4, F_ALIVE = 8, F_GROUND = 16, F_SPRINT = 32, F_SHIELD = 64, F_GOLEM = 128;
+export const F_CROUCH = 1, F_SLIDE = 2, F_INVIS = 4, F_ALIVE = 8, F_GROUND = 16, F_SPRINT = 32, F_SHIELD = 64, F_GOLEM = 128, F_REVIVE = 256;
 
 function nameTag(text, color) {
   const c = document.createElement('canvas');
@@ -103,6 +103,7 @@ export class RemotePlayer {
     this.invisible = !!(snap.f & F_INVIS);
     this.shield = !!(snap.f & F_SHIELD);
     this.golem = !!(snap.f & F_GOLEM);
+    this.reviving = !!(snap.f & F_REVIVE);
     this.weaponId = snap.w;
     // new shots since the last snapshot → muzzle flash, tracer, sound on my screen
     if (this.shotSeq >= 0 && snap.seq > this.shotSeq) this.game.net?.playRemoteShots(this, Math.min(4, snap.seq - this.shotSeq), snap.t);

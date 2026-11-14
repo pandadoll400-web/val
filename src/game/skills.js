@@ -916,10 +916,12 @@ export class SkillSystem {
     const t = this.bloomTree;
     if (!t) return false;
     this.bloomTree = null;
+    this.reviving = true;
     this.cancelCharge();
     this.game.hud.msg('꽃나무가 당신을 되살립니다…', 1.4);
     setTimeout(() => {
       const g = this.game;
+      this.reviving = false;
       if (g.over || g.disposed) { this.removeLifeTree(t, false); return; }
       this.removeLifeTree(t);
       g.net?.fx({ k: 'bloomEnd' });

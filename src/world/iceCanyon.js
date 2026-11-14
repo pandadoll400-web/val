@@ -27,6 +27,7 @@ export class IceCanyonWorld {
     this.scene = scene;
     this.layout = layout;
     const T = this.theme = getTheme(themeId);
+    [this.halfW, this.halfL] = T.size || [HALF_W, HALF_L];
     // materials of this map
     const b = T.block;
     this.mats = {
@@ -42,6 +43,9 @@ export class IceCanyonWorld {
     this.spawns = [];
     this.water = [];   // shallow water ellipses {x, z, rx, rz}
     this.islands = []; // dry circles inside the water {x, z, r}
+    this.ice = [];     // frozen sheets (walkable, icy footsteps)
+    this.zones = [];   // capture zones (campsite)
+    this.flickers = []; // campfire lights
     this.teamSpawns = { A: [0, 76, 0], B: [0, -72, Math.PI], C: [28, 0, Math.PI / 2] };
     this.crateMat = this.mats.crate;
     this.rng = mulberry32(2024);
@@ -89,9 +93,15 @@ export class IceCanyonWorld {
     return false;
   }
 
+  onIce(x, z) {
+    for (const p of this.ice) if (((x - p.x) / p.rx) ** 2 + ((z - p.z) / p.rz) ** 2 < 1) return true;
+    return false;
+  }
+
   /** footstep surface under (x, z, y) */
   surfaceAt(x, z, y = 0) {
     if (this.inWater(x, z, y)) return 'water';
+    if (y < 0.2 && this.onIce(x, z)) return 'ice';
     if (y > 0.2) return this.theme.id === 'ice' ? 'ice' : this.theme.id === 'desert' ? 'stone' : 'wood';
     return this.theme.surface || 'snow';
   }
@@ -101,8 +111,8 @@ export class IceCanyonWorld {
     const rng = mulberry32(777), T = this.theme;
     let placed = 0, guard = 0;
     while (placed < 46 && guard++ < 900) {
-      const x = (rng() - 0.5) * (HALF_W * 2 - 4), z = (rng() - 0.5) * (HALF_L * 2 - 6);
-      if (this.blockedAt(x, z, 1.2) || this.inWater(x, z)) continue;
+      const x = (rng() - 0.5) * (this.halfW * 2 - 4), z = (rng() - 0.5) * (this.halfL * 2 - 6);
+      if (this.blockedAt(x, z, 1.2) || this.inWater(x, z) || this.onIce(x, z)) continue;
       const o = makeThemeProp(T, rng, 0.8 + rng() * 0.6);
       if (!o) break;
       o.position.set(x, 0, z);
@@ -123,10 +133,10 @@ export class IceCanyonWorld {
       m.receiveShadow = true;
       return m;
     };
-    const sideOpts = { z0: 100, len: 200, baseX: HALF_W + 1, height: 55 };
+    const sideOpts = { z0: 100, len: 200, baseX: this.halfW + 1, height: 55 };
     const left = mk({ ...sideOpts, side: -1, seed: 3 });
     const right = mk({ ...sideOpts, side: 1, seed: 11 });
-    const endOpts = { z0: 60, len: 120, baseX: HALF_L + 1, height: 50, side: 1 };
+    const endOpts = { z0: 60, len: 120, baseX: this.halfL + 1, height: 50, side: 1 };
     const far = mk({ ...endOpts, seed: 21 });
     far.rotation.y = Math.PI / 2;     // -> z = -(baseX + off)
     const near = mk({ ...endOpts, seed: 27 });
@@ -135,25 +145,25 @@ export class IceCanyonWorld {
 
     // invisible boundary colliders
     const B = 200;
-    this.addCollider(new THREE.Box3(new THREE.Vector3(-B, -10, -B), new THREE.Vector3(-HALF_W, 100, B)));
-    this.addCollider(new THREE.Box3(new THREE.Vector3(HALF_W, -10, -B), new THREE.Vector3(B, 100, B)));
-    this.addCollider(new THREE.Box3(new THREE.Vector3(-B, -10, -B), new THREE.Vector3(B, 100, -HALF_L)));
-    this.addCollider(new THREE.Box3(new THREE.Vector3(-B, -10, HALF_L), new THREE.Vector3(B, 100, B)));
+    this.addCollider(new THREE.Box3(new THREE.Vector3(-B, -10, -B), new THREE.Vector3(-this.halfW, 100, B)));
+    this.addCollider(new THREE.Box3(new THREE.Vector3(this.halfW, -10, -B), new THREE.Vector3(B, 100, B)));
+    this.addCollider(new THREE.Box3(new THREE.Vector3(-B, -10, -B), new THREE.Vector3(B, 100, -this.halfL)));
+    this.addCollider(new THREE.Box3(new THREE.Vector3(-B, -10, this.halfL), new THREE.Vector3(B, 100, B)));
 
     // props hugging the walls (crystals / trees / hives & flowers)
     const rng = this.rng, P = this.theme.prop;
     for (let i = 0; i < 26; i++) {
       const side = i % 2 ? 1 : -1;
       const cl = P === 'tree' ? makeTree(rng, 1.3 + rng() * 0.9) : P === 'flower' ? (i % 3 ? makeFlowers(rng, 1.4) : makeHiveBox(rng, 1.3))
-        : P === 'reed' ? (i % 3 ? makePine(rng, 1.4 + rng() * 0.6) : makeReeds(rng, 1.5)) : P === 'cactus' ? (i % 3 ? makeCactus(rng, 1.2 + rng() * 0.5) : makePalm(rng, 1.2))
+        : P === 'reed' ? (i % 3 ? makePine(rng, 1.4 + rng() * 0.6, this.theme.snowy) : makeReeds(rng, 1.5)) : P === 'cactus' ? (i % 3 ? makeCactus(rng, 1.2 + rng() * 0.5) : makePalm(rng, 1.2))
         : makeCrystalCluster(rng, 1 + rng() * 1.6);
-      cl.position.set(side * (HALF_W - 0.5 + rng() * 1.5), 0, -HALF_L + rng() * HALF_L * 2);
+      cl.position.set(side * (this.halfW - 0.5 + rng() * 1.5), 0, -this.halfL + rng() * this.halfL * 2);
       this.scene.add(cl);
     }
   }
 
   buildFloor() {
-    const geo = new THREE.PlaneGeometry(HALF_W * 2 + 40, HALF_L * 2 + 40, 60, 120);
+    const geo = new THREE.PlaneGeometry(this.halfW * 2 + 40, this.halfL * 2 + 40, 60, 120);
     geo.rotateX(-Math.PI / 2);
     const p = geo.attributes.position;
     const col = new Float32Array(p.count * 3);
@@ -161,7 +171,7 @@ export class IceCanyonWorld {
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), z = p.getZ(i);
       const n = fbm(x * 0.05, z * 0.05, 5, 4);
-      p.setY(i, Math.max(0, (Math.abs(x) - HALF_W + 2) * 0.4) + Math.max(0, (Math.abs(z) - HALF_L + 2) * 0.4));
+      p.setY(i, Math.max(0, (Math.abs(x) - this.halfW + 2) * 0.4) + Math.max(0, (Math.abs(z) - this.halfL + 2) * 0.4));
       tmp.copy(ice).lerp(snow, THREE.MathUtils.smoothstep(n, -0.15, 0.2));
       col[i * 3] = tmp.r; col[i * 3 + 1] = tmp.g; col[i * 3 + 2] = tmp.b;
     }
@@ -252,7 +262,7 @@ export class IceCanyonWorld {
     const pts = [];
     let guard = 0;
     while (pts.length < n && guard++ < 2000) {
-      const p = new THREE.Vector3((rng() - 0.5) * 60, 0, -80 + rng() * 115);
+      const p = new THREE.Vector3((rng() - 0.5) * (this.halfW * 2 - 8), 0, -(this.halfL - 4) + rng() * (this.halfL * 1.42 - 4));
       const blocked = this.blockedAt(p.x, p.z, 1) || this.inWater(p.x, p.z);
       if (blocked || pts.some((q) => q.distanceTo(p) < 9)) continue;
       pts.push(p);
@@ -266,7 +276,7 @@ export class IceCanyonWorld {
     const kind = this.theme.pillar;
     if (kind !== 'ice') {
       // giant tree / honeycomb tower / pine / palm in the same footprint
-      const o = kind === 'tree' ? makeTree(this.rng, 2.2) : kind === 'hive' ? makeHive(this.rng, 1.05) : kind === 'pine' ? makePine(this.rng, 1.8) : makePalm(this.rng, 1.4);
+      const o = kind === 'tree' ? makeTree(this.rng, 2.2) : kind === 'hive' ? makeHive(this.rng, 1.05) : kind === 'pine' ? makePine(this.rng, 1.8, this.theme.snowy) : makePalm(this.rng, 1.4);
       o.position.set(x, 0, z);
       this.scene.add(o);
       o.traverse((m) => { if (m.isMesh) { this.solids.push(m); this.cover.push(m); } });
@@ -334,6 +344,16 @@ export class IceCanyonWorld {
     this.sky.position.copy(camPos);
     this.sky.material.uniforms.uTime.value = this.time;
     this.snow.userData.update(dt, camPos);
+    for (const f of this.flickers) {
+      const k = 0.8 + Math.sin(this.time * 13 + f.base) * 0.12 + Math.sin(this.time * 31) * 0.08;
+      f.light.intensity = f.base * k;
+      f.flames.forEach((m, i) => { m.scale.set(1, k + i * 0.1 + Math.sin(this.time * (17 + i * 5)) * 0.15, 1); m.rotation.y += 0.05; });
+    }
+    for (const z of this.zones) {
+      const a = z.flag.geometry.attributes.position, b = z.basePos;
+      for (let i = 0; i < a.count; i++) { const x = b[i * 3]; a.array[i * 3 + 2] = Math.sin(x * 3 - this.time * 6) * 0.12 * x; }
+      a.needsUpdate = true;
+    }
     if (this.waterMat) { const n = this.waterMat.normalMap; n.offset.x = this.time * 0.02; n.offset.y = this.time * 0.013; }
   }
 

@@ -3,7 +3,7 @@ import {
   getDb, ref, set, get, push, remove, onValue, onChildAdded, onChildChanged, onChildRemoved, off,
   onDisconnect, runTransaction, serverNow,
 } from './firebase.js';
-import { F_CROUCH, F_SLIDE, F_INVIS, F_ALIVE, F_GROUND, F_SPRINT, F_SHIELD, F_GOLEM } from '../game/remotePlayer.js';
+import { F_CROUCH, F_SLIDE, F_INVIS, F_ALIVE, F_GROUND, F_SPRINT, F_SHIELD, F_GOLEM, F_REVIVE } from '../game/remotePlayer.js';
 import { audio } from '../audio.js';
 import { WEAPONS } from '../data/weapons.js';
 
@@ -74,6 +74,7 @@ export class NetSession {
       game.onNetRound?.(r);
     });
     for (const b of this.myBots) onChildAdded(track(this.r(`ev/${b}`)), (s) => this.onBotEvent(b, s));
+    if (this.mode === 'dom') onValue(track(this.r('zones')), (s) => game.onNetZones?.(s.val()));
     onValue(track(this.r('stats')), (s) => { this.stats = s.val() || {}; game.onNetStats?.(this.stats); });
     onValue(track(this.r('meta')), (s) => {
       const m = s.val();
@@ -129,6 +130,7 @@ export class NetSession {
     if (p.sprinting) f |= F_SPRINT;
     if (p.shieldT > 0) f |= F_SHIELD;
     if (g.skills.golemT > 0) f |= F_GOLEM;
+    if (g.skills.reviving) f |= F_REVIVE;
     const t = this.tracerEnd || p.position;
     const data = [r2(p.position.x), r2(p.position.y), r2(p.position.z), r3(p.yaw), r3(p.pitch), g.weapons.def.id, f,
       Math.max(0, Math.round(p.hp)), this.shotSeq, r2(t.x), r2(t.y), r2(t.z), Math.round(serverNow())];
@@ -214,8 +216,7 @@ export class NetSession {
     for (const u of this.humans) if (u !== this.uid) push(this.r(`ev/${u}`), { from: this.uid, type: 'feed', ...feed }).catch(() => {});
     if (victimUid !== this.uid) this.game.onNetFeed?.(feed); // an AI I simulate died: I see the feed too
     else this.creditBot(killerUid);
-    // the first kill of a round wins it (later kills of the same round are ignored)
-    await this.winRound(team, { reason: 'kill', killer: feed.killerName, victim: feed.victimName });
+    // rounds end when only one team is left standing (decided in game.updateRound)
   }
 
   /** an AI I simulate got a kill → its K/D/A */
@@ -250,6 +251,9 @@ export class NetSession {
 
   /** my kills / deaths / assists, shown to everybody on the result screen */
   pushStats(k, d, a) { this.pushStatsFor(this.uid, k, d, a); }
+
+  /** domination: the judge publishes the zone states */
+  writeZones(zones) { set(this.r('zones'), zones).catch(() => {}); }
 
   async endMatch(result) {
     await runTransaction(this.r('meta'), (m) => {

@@ -122,7 +122,7 @@ export class MenuBackground {
     const rng = mulberry32(index * 7919 + 3);
     const prop = (s) => T.prop === 'tree' ? (rng() < 0.6 ? makeTree(rng, s * 1.1) : rng() < 0.5 ? makeMushroom(rng, s * 1.4) : makeBush(rng, s))
       : T.prop === 'flower' ? (rng() < 0.65 ? makeFlowers(rng, s * 1.6) : makeHiveBox(rng, s))
-      : T.prop === 'reed' ? (rng() < 0.5 ? makeReeds(rng, s * 1.4) : makePine(rng, s * 1.2))
+      : T.prop === 'reed' ? (rng() < 0.5 ? makeReeds(rng, s * 1.4) : makePine(rng, s * 1.2, T.snowy))
       : T.prop === 'cactus' ? (rng() < 0.6 ? makeCactus(rng, s * 1.1) : makePalm(rng, s * 0.9))
       : makeCrystalCluster(rng, s);
     for (let i = 0; i < 9; i++) {
@@ -142,7 +142,7 @@ export class MenuBackground {
     }
     // Occasional ice pillar on the frozen river
     if (rng() < 0.6) {
-      const pil = T.pillar === 'tree' ? makeTree(rng, 2.4) : T.pillar === 'hive' ? makeHive(rng, 1.2) : T.pillar === 'pine' ? makePine(rng, 2) : T.pillar === 'palm' ? makePalm(rng, 1.6) : makeIceRock(rng, 1.4, 9 + rng() * 6, 1.4);
+      const pil = T.pillar === 'tree' ? makeTree(rng, 2.4) : T.pillar === 'hive' ? makeHive(rng, 1.2) : T.pillar === 'pine' ? makePine(rng, 2, T.snowy) : T.pillar === 'palm' ? makePalm(rng, 1.6) : makeIceRock(rng, 1.4, 9 + rng() * 6, 1.4);
       pil.position.set((rng() - 0.5) * 8, 0, z0 - rng() * CHUNK_LEN);
       c.props.add(pil);
       const cl = prop(1.5);

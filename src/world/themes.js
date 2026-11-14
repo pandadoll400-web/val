@@ -45,17 +45,30 @@ export const THEMES = {
     prop: 'flower', pillar: 'hive',
   },
   lake: {
-    id: 'lake', name: '거울 호수', en: 'MIRROR LAKE',
-    lead: '하늘을 비추는 고요한 호수. 잔물결 위로 숨 막히는 저격전이 펼쳐진다.<br />호숫가에 숨어든 적 7명을 모두 처치하라.',
-    fog: '#b9d4e2', fogNear: 70, fogFar: 400,
-    sky: { horizon: '#d6ecf6', warm: '#fff0c8', mid: '#76b2e0', top: '#2a62a8', aurora: 0, stars: 0 },
-    hemi: ['#eaf6ff', '#3d5a3a', 1.25], sun: ['#fff4de', 2.9],
-    cliff: ['#3a5446', '#6d8c68', '#cfdcc4'], cliffRough: 0.85,
-    floor: ['#557f34', '#86a84c'], bank: ['#5f8a3a', '#a8bf74'], river: '#4f9fcc', riverRough: 0.05,
+    id: 'lake', name: '겨울 호수', en: 'WINTER LAKE',
+    lead: '꽁꽁 얼어붙은 겨울 호수. 갈라지는 얼음 위로 숨 막히는 저격전이 펼쳐진다.<br />호숫가에 숨어든 적 7명을 모두 처치하라.',
+    fog: '#c6d6e4', fogNear: 55, fogFar: 330,
+    sky: { horizon: '#dfe9f2', warm: '#ffe6d0', mid: '#93aecb', top: '#3f5a7e', aurora: 0.25, stars: 0 },
+    hemi: ['#eef6ff', '#5a6a80', 1.3], sun: ['#fff2e6', 2.3],
+    cliff: ['#5f7a90', '#b8cfe0', '#f6faff'], cliffRough: 0.6,
+    floor: ['#c9dceb', '#f4f9ff'], bank: ['#c9dceb', '#f4f9ff'], river: '#3f7fa8', riverRough: 0.05,
     block: { color: '#8a6a48', emissive: '#000000', emissiveIntensity: 0, roughness: 0.85, opacity: 1 },
-    rock: '#8f9a94', crate: ['#8a6440', '#3b2a1a'], wall: '#7b5a3c', roof: '#3f5f7a',
-    particles: { color: '#ffffff', size: 0.08, fall: 0.12, drift: 0.8, count: 500 },
-    prop: 'reed', pillar: 'pine', surface: 'grass',
+    rock: '#9fb0be', crate: ['#8a6440', '#3b2a1a'], wall: '#7b5a3c', roof: '#e8f2fa',
+    particles: { color: '#ffffff', size: 0.14, fall: 0.9, drift: 0.7, count: 1800 },
+    prop: 'reed', pillar: 'pine', surface: 'snow', snowy: true,
+  },
+  camp: {
+    id: 'camp', name: '캠핑장', en: 'CAMPSITE',
+    lead: '모닥불이 타닥이는 여름밤의 캠핑장. 텐트 사이로 총성이 울린다.<br />캠핑장에 숨어든 적 7명을 모두 처치하라.',
+    fog: '#5a4a6a', fogNear: 60, fogFar: 300, size: [50, 72],
+    sky: { horizon: '#ffb98a', warm: '#ff7a3a', mid: '#6a4a8a', top: '#141634', aurora: 0, stars: 0.8 },
+    hemi: ['#ffd8b8', '#2a3a2a', 1.05], sun: ['#ffb070', 2.0],
+    cliff: ['#24331f', '#3f5a2e', '#6f8a4a'], cliffRough: 0.9,
+    floor: ['#4f7a2c', '#7a9a3e'], bank: ['#4f7a2c', '#7a9a3e'], river: '#3f6f7a', riverRough: 0.1,
+    block: { color: '#7a5a3a', emissive: '#000000', emissiveIntensity: 0, roughness: 0.85, opacity: 1 },
+    rock: '#7a7a6e', crate: ['#8a6440', '#3b2a1a'], wall: '#7a5432', roof: '#4a2e1c',
+    particles: { color: '#ffd27a', size: 0.11, fall: 0.1, drift: 0.5, count: 700, glow: true },
+    prop: 'tree', pillar: 'tree', surface: 'grass',
   },
   desert: {
     id: 'desert', name: '모래 요새', en: 'DUNE FORT',
@@ -74,7 +87,7 @@ export const THEMES = {
 THEMES.ice.surface = 'snow'; THEMES.ice.wall = '#e8f4ff'; THEMES.ice.roof = '#cfe6f7';
 THEMES.forest.surface = 'grass'; THEMES.forest.wall = '#6b4a2e'; THEMES.forest.roof = '#3c2a1c';
 THEMES.honey.surface = 'grass'; THEMES.honey.wall = '#c98a3a'; THEMES.honey.roof = '#7a4a1a';
-export const THEME_ORDER = ['ice', 'forest', 'honey', 'lake', 'desert'];
+export const THEME_ORDER = ['ice', 'forest', 'honey', 'lake', 'desert', 'camp'];
 export const getTheme = (id) => THEMES[id] || THEMES.ice;
 export const randomMap = () => THEME_ORDER[Math.floor(Math.random() * THEME_ORDER.length)];
 
@@ -208,7 +221,7 @@ export function makeHiveBox(rng, scale = 1) {
 /* ---------- lake / desert props ---------- */
 export function makeReeds(rng, scale = 1) {
   const g = new THREE.Group();
-  const m = mat('reed', { color: '#6f8a3a', roughness: 0.9 }), top = mat('reedTop', { color: '#6a4a2a', roughness: 0.9 });
+  const m = mat('reed', { color: '#a08a5a', roughness: 0.9 }), top = mat('reedTop', { color: '#5a3a1e', roughness: 0.9 });
   for (let i = 0; i < 9; i++) {
     const h = (0.9 + rng() * 0.9) * scale;
     const x = (rng() - 0.5) * 1.2 * scale, z = (rng() - 0.5) * 1.2 * scale;
@@ -226,7 +239,7 @@ export function makeReeds(rng, scale = 1) {
 }
 
 /** lake pine: tall slim conifer (scale 1 ≈ 8 m) */
-export function makePine(rng, scale = 1) {
+export function makePine(rng, scale = 1, snowy = false) {
   const g = new THREE.Group();
   const trunkH = 2.4 * scale;
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14 * scale, 0.24 * scale, trunkH, 7), mat('trunk2', { color: '#5a3b26', roughness: 0.95, flatShading: true }));
@@ -240,6 +253,13 @@ export function makePine(rng, scale = 1) {
     cone.rotation.y = rng() * 3;
     cone.castShadow = true;
     g.add(cone);
+    if (snowy) {
+      // snow cap on every layer
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(r * 0.78, h * 0.42, 9), mat('pineSnow', { color: '#f4f9ff', roughness: 0.7, flatShading: true }));
+      cap.position.y = cone.position.y + h * 0.3;
+      cap.rotation.y = cone.rotation.y;
+      g.add(cap);
+    }
   }
   return g;
 }
@@ -311,7 +331,7 @@ export function makeThemeProp(theme, rng, s = 1) {
   switch (theme.prop) {
     case 'tree': return rng() < 0.5 ? makeMushroom(rng, s) : makeBush(rng, s * 0.7);
     case 'flower': return rng() < 0.75 ? makeFlowers(rng, s) : makeHiveBox(rng, s * 0.8);
-    case 'reed': return rng() < 0.6 ? makeReeds(rng, s) : makeFlowers(rng, s * 0.8);
+    case 'reed': return rng() < 0.6 ? makeReeds(rng, s) : makeBush(rng, s * 0.6);
     case 'cactus': return rng() < 0.7 ? makeCactus(rng, s * 0.7) : makeBush(rng, s * 0.5);
     default: return null;
   }
@@ -336,7 +356,7 @@ export function floorDetailTexture(id) {
       g.stroke();
     }
     for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(120,80,40,${rnd() * 0.25})`; g.fillRect(rnd() * S, rnd() * S, 1.5, 1.5); }
-  } else if (id === 'ice') {
+  } else if (id === 'ice' || id === 'lake') {
     for (let i = 0; i < 1400; i++) { const v = 200 + rnd() * 55; g.fillStyle = `rgba(${v - 30},${v - 10},${v},${0.25 + rnd() * 0.3})`; g.fillRect(rnd() * S, rnd() * S, 2, 2); }
     for (let i = 0; i < 14; i++) { g.strokeStyle = 'rgba(120,170,210,0.25)'; g.lineWidth = 1; g.beginPath(); let x = rnd() * S, y = rnd() * S; g.moveTo(x, y); for (let k = 0; k < 5; k++) { x += (rnd() - 0.5) * 40; y += (rnd() - 0.5) * 40; g.lineTo(x, y); } g.stroke(); }
   } else {

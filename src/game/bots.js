@@ -76,8 +76,10 @@ export class AIBot {
   }
 
   randomPoint() {
+    if (this.uid && this.game.dom) return this.game.zoneTargetFor(this.team, this.position);
     for (let i = 0; i < 20; i++) {
-      const p = new THREE.Vector3((Math.random() - 0.5) * 60, 0, -78 + Math.random() * 120);
+      const W = this.game.world, hw = W.halfW - 4, hl = W.halfL - 6;
+      const p = new THREE.Vector3((Math.random() - 0.5) * hw * 2, 0, this.uid ? (Math.random() - 0.5) * hl * 2 : -hl + Math.random() * hl * 1.45);
       if (!this.game.world.blockedAt(p.x, p.z, 1)) return p;
     }
     return new THREE.Vector3(0, 0, 0);
@@ -258,7 +260,7 @@ export class AIBot {
       this.alertT -= dt;
       if (this.alertT <= 0 && !game.huntAll) { this.state = 'patrol'; this.waypoint = this.randomPoint(); }
     }
-    if ((game.huntAll || this.uid) && !noTarget && player.alive && !player.invisible) { this.state = 'hunt'; if (!this.canSee) this.lastKnown.copy(player.position); }
+    if ((game.huntAll || (this.uid && !game.dom)) && !noTarget && player.alive && !player.invisible) { this.state = 'hunt'; if (!this.canSee) this.lastKnown.copy(player.position); }
 
     // movement intent
     let speed = 3.2;

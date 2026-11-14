@@ -12,7 +12,8 @@ import { audio } from '../audio.js';
 import { RemotePlayer } from './remotePlayer.js';
 import { IS_TOUCH, TouchControls } from './touch.js';
 import { serverNow } from '../net/firebase.js';
-import { MODE_NAMES, ROUND_TIME, OVERTIME } from '../net/room.js';
+import { MODE_NAMES, ROUND_TIME, OVERTIME, CAPTURE_TIME, DOM_TIME } from '../net/room.js';
+import { setZoneVisual } from '../world/maps.js';
 import { getTheme, randomMap } from '../world/themes.js';
 import { getPortrait } from '../menu/ui.js';
 
@@ -34,6 +35,8 @@ export class Game {
     this.roundN = 0;
     this.roundStart = this.startAt;
     this.resetAt = 0;
+    this.dom = !!net && mode === 'dom';
+    this.zoneState = null; // domination: [{ o: owner, c: capturing team, p: seconds }]
     this.respawnAt = 0;
     this.deaths = 0;
     this.assists = 0;
@@ -108,7 +111,8 @@ export class Game {
     $('hud').classList.remove('hidden');
     $('result').classList.add('hidden');
     audio.init();
-    if (this.net) this.hud.msg(`${this.mapName} · ${MODE_NAMES[this.mode]} — 처치하면 라운드 승리 · ${this.net.target}점 먼저!`, 3.5);
+    if (this.dom) this.hud.msg(`${this.mapName} · 점령전 — 구역에 ${CAPTURE_TIME}초 서 있으면 점령 · 구역 2개를 먼저 차지하면 승리!`, 4);
+    else if (this.net) this.hud.msg(`${this.mapName} · ${MODE_NAMES[this.mode]} — 상대를 모두 쓰러뜨리면 라운드 승리 · ${this.net.target}점 먼저!`, 3.5);
     else this.hud.msg(this.mode === 'training' ? `${this.mapName} 훈련장 — 표적은 움직이거나 공격하지 않습니다 · Esc로 나가기` : `${this.mapName} — 적 ${this.totalEnemies}명을 모두 처치하라!`, 3.5);
     this.lock();
   }
@@ -227,7 +231,8 @@ export class Game {
       this.hud.killfeed(`${info.killer || '상대'}<span class="w">${info.weapon || ''}</span><span class="me">${this.myName}</span>`);
       $('death').classList.remove('hidden');
       $('death-by').textContent = `${info.killer || '상대'}에게 처치당했습니다`;
-      $('death-timer').textContent = '라운드 종료 — 곧 모두 시작 위치에서 다시 시작합니다';
+      if (this.dom) this.respawnAt = this.time + 3;
+      else $('death-timer').textContent = '살아남은 팀원이 싸우는 중 — 라운드가 끝나면 모두 시작 위치에서 다시 시작합니다';
       this.deaths++;
       this.net.pushStats(this.kills, this.deaths, this.assists);
       this.skills.cancelCharge();
@@ -368,7 +373,7 @@ export class Game {
       this.hud.msg(left > 0 ? `${left}` : '', 0.3);
     } else if (this.net && this._wasFrozen) this.hud.msg('시작!', 1);
     this._wasFrozen = frozen;
-    if (this.net && !this.over) this.updateRound();
+    if (this.net && !this.over) { if (this.dom) this.updateDom(dt); else this.updateRound(dt); }
     this.player.update(dt, this.over || this.paused || frozen ? {} : this.keys);
     if (this.player.sliding && Math.random() < 0.6) {
       const p = this.player.position;
@@ -397,10 +402,117 @@ export class Game {
   }
 
   /* ================= online match (duel / duo / squad) ================= */
-  get frozen() { return !!this.net && (serverNow() < this.roundStart || this.resetAt > 0); }
+  get frozen() { return !!this.net && (this.dom ? serverNow() < this.startAt : serverNow() < this.roundStart || this.resetAt > 0); }
+
+  /** the person with the smallest id among those still here decides rounds / zones */
+  get isJudge() { return this.net.humans.filter((u) => u === this.net.uid || this.net.present.has(u)).sort()[0] === this.net.uid; }
+
+  /* ================= domination (campsite, 3 zones, unlimited respawns) ================= */
+  updateDom(dt) {
+    // my respawn 3 s after death at the team base
+    if (!this.player.alive && this.respawnAt) {
+      const left = this.respawnAt - this.time;
+      $('death-timer').textContent = left > 0 ? `${Math.ceil(left)}초 후 기지에서 부활` : '';
+      if (left <= 0) this.respawnPlayer();
+    }
+    // AI I simulate respawn the same way
+    for (const b of this.bots) {
+      if (b.alive) { b._deadT = 0; continue; }
+      b._deadT = (b._deadT || 0) + dt;
+      if (b._deadT > 3) { b._deadT = 0; this.respawnBot(b); }
+    }
+    const zones = this.world.zones;
+    if (!zones.length || this.frozen) return;
+    const st = this.zoneState ||= zones.map(() => ({ o: '', c: '', p: 0 }));
+    // flags + rings follow the (published) state on every screen
+    for (let i = 0; i < zones.length; i++) {
+      const s = st[i], own = s.o ? this.teamColor(s.o) : '#f2f2f2';
+      setZoneVisual(zones[i], own, s.c ? this.teamColor(s.c) : own, s.p / CAPTURE_TIME);
+    }
+    if (!this.isJudge) return;
+    // who is standing in each zone (alive only)
+    const people = [];
+    if (this.player.alive) people.push([this.player.position, this.myTeam]);
+    for (const r of Object.values(this.remotes)) if (r.alive && !r.gone && r.model.group.visible) people.push([r.position, r.team]);
+    for (const b of this.bots) if (b.alive) people.push([b.position, b.team]);
+    for (let i = 0; i < zones.length; i++) {
+      const z = zones[i], s = st[i];
+      const inside = new Set(people.filter(([p]) => Math.hypot(p.x - z.x, p.z - z.z) < z.r && p.y < 3).map(([, t]) => t));
+      if (inside.size === 1) {
+        const t = [...inside][0];
+        if (s.o === t) { if (s.p > 0) { s.p = Math.max(0, s.p - dt * 2); if (!s.p) s.c = ''; } }
+        else {
+          if (!s.c || s.p <= 0) s.c = t;
+          if (s.c === t) {
+            s.p += dt;
+            if (s.p >= CAPTURE_TIME) { s.o = t; s.c = ''; s.p = 0; }
+          } else s.p = Math.max(0, s.p - dt); // knock the other team's progress down first
+        }
+      } else if (inside.size === 0 && s.p > 0) { s.p = Math.max(0, s.p - dt * 0.5); if (!s.p) s.c = ''; }
+    }
+    const count = { A: 0, B: 0 };
+    for (const s of st) if (s.o) count[s.o] = (count[s.o] || 0) + 1;
+    this._zoneSend = (this._zoneSend || 0) + dt;
+    if (this._zoneSend > 0.25) { this._zoneSend = 0; this.net.writeZones(st.map((s) => ({ o: s.o, c: s.c, p: Math.round(s.p * 10) / 10 }))); }
+    const win = Object.keys(count).find((t) => count[t] >= 2);
+    if (win) { this.net.writeZones(st); this.net.endMatch({ winner: win, reason: 'zones' }); return; }
+    if (serverNow() > this.startAt + DOM_TIME * 1000) {
+      const w = count.A > count.B ? 'A' : count.B > count.A ? 'B' : null;
+      this.net.endMatch({ winner: w, reason: 'time' });
+    }
+  }
+
+  teamColor(t) { return t === this.myTeam ? '#ffc21f' : '#8a4dff'; }
+
+  onNetZones(z) {
+    if (!Array.isArray(z)) return;
+    const prev = this.zoneState;
+    if (prev && !this.isJudge) for (let i = 0; i < z.length; i++) Object.assign(prev[i], z[i]);
+    else if (!prev) this.zoneState = z.map((s) => ({ ...s }));
+    const st = this.zoneState;
+    // announcements when a zone changes hands
+    const owners = st.map((s) => s.o || '');
+    if (this._owners) owners.forEach((o, i) => {
+      if (o && o !== this._owners[i]) {
+        const id = this.world.zones[i]?.id || '?';
+        this.hud.msg(o === this.myTeam ? `${id} 구역 점령!` : `상대가 ${id} 구역을 점령했습니다`, 2);
+        audio.skill(o === this.myTeam ? 'absorb' : 'boom');
+      }
+    });
+    this._owners = owners;
+    this.score = { A: 0, B: 0 };
+    for (const o of owners) if (o) this.score[o]++;
+    this.hud.updateZones?.(st);
+  }
+
+  respawnBot(b) {
+    const sp = this.teamSpawn(b.team, b.slot);
+    b.home.copy(sp.pos);
+    b.yaw = sp.yaw;
+    b.slowT = b.stunT = b.glitchSlowT = b.weakT = b.blindT = 0;
+    b.state = this.dom ? 'patrol' : 'hunt'; b.canSee = false; b.seenT = 0; b.target = null;
+    b.vel.set(0, 0, 0);
+    b.model.group.rotation.set(0, b.yaw, 0);
+    b.respawn();
+    if (this.dom) b.waypoint = b.randomPoint();
+  }
+
+  /** where an AI goes in domination: the closest zone its team does not own yet */
+  zoneTargetFor(team, from) {
+    const zs = this.world.zones, st = this.zoneState;
+    let best = null, bd = 1e9;
+    zs.forEach((z, i) => {
+      if (st && st[i]?.o === team) return;
+      const d = from ? Math.hypot(from.x - z.x, from.z - z.z) : 0;
+      if (d < bd) { bd = d; best = z; }
+    });
+    best ||= zs[Math.floor(Math.random() * zs.length)];
+    return new THREE.Vector3(best.x + (Math.random() - 0.5) * 5, 0, best.z + (Math.random() - 0.5) * 5);
+  }
 
   /** seconds left in the round (overtime: negative phase handled by the HUD) */
   roundClock() {
+    if (this.dom) return { left: Math.max(0, DOM_TIME - Math.max(0, serverNow() - this.startAt) / 1000), ot: false };
     const t = (serverNow() - this.roundStart) / 1000;
     if (t < 0) return { left: ROUND_TIME, ot: false, pre: true };
     if (t < ROUND_TIME) return { left: ROUND_TIME - t, ot: false };
@@ -408,15 +520,29 @@ export class Game {
   }
 
   /** round timer: 1:30 + 30 s overtime; then the side with more health takes the round */
-  updateRound() {
+  updateRound(dt = 0) {
     if (this.resetAt && this.time >= this.resetAt) { this.resetAt = 0; this.resetRound(); }
     if (this.frozen) return;
+    // last team standing wins the round (judge decides, after a short grace for network lag)
+    const alive = {};
+    if (this.player.alive || this.skills.reviving) alive[this.myTeam] = 1;
+    for (const r of Object.values(this.remotes)) if (!r.gone && (r.alive || r.reviving)) alive[r.team] = 1;
+    for (const b of this.bots) if (b.alive) alive[b.team] = 1;
+    const standing = Object.keys(alive);
+    if (standing.length <= 1) {
+      this._standT = (this._standT || 0) + dt;
+      if (this._standT > 0.6 && this._decided !== this.roundN && this.isJudge) {
+        this._decided = this.roundN;
+        this.net.winRound(standing[0] || null, { reason: standing.length ? 'survive' : 'draw' });
+      }
+      return;
+    }
+    this._standT = 0;
     const c = this.roundClock();
     if (c.ot && !this._otShown) { this._otShown = true; this.hud.msg('연장전! 30초 안에 결판을 내세요', 2.2); }
     if (c.ot && c.left <= 0 && this._decided !== this.roundN) {
       // the person with the smallest id decides (everyone sees the same health numbers)
-      const judge = this.net.humans.filter((u) => u === this.net.uid || this.net.present.has(u)).sort()[0];
-      if (judge !== this.net.uid) return;
+      if (!this.isJudge) return;
       this._decided = this.roundN;
       const hp = {};
       const add = (team, v) => { hp[team] = (hp[team] || 0) + Math.max(0, v); };
@@ -439,8 +565,8 @@ export class Game {
     if (this.over) return;
     const L = r.last || {};
     const mine = L.team && L.team === this.myTeam;
-    const txt = L.reason === 'kill' ? `${L.killer} → ${L.victim} 처치`
-      : L.reason === 'hp' ? '시간 종료 — 체력이 더 많은 쪽이 승리' : '시간 종료 — 무승부 (점수 없음)';
+    const txt = L.reason === 'survive' ? (mine ? '우리 팀이 끝까지 살아남았습니다' : '상대가 끝까지 살아남았습니다')
+      : L.reason === 'hp' ? '시간 종료 — 체력이 더 많은 쪽이 승리' : L.reason === 'draw' && !L.team ? '무승부 (점수 없음)' : '시간 종료 — 무승부 (점수 없음)';
     if (!r.over) this.hud.msg(`${L.team ? (mine ? '라운드 승리!' : '라운드 패배') : '무승부'} · ${txt}`, 2.2);
     this.weapons.trigger = false;
     this.resetAt = this.time + 1.3;
@@ -449,16 +575,7 @@ export class Game {
   resetRound() {
     if (this.over) return;
     this.respawnPlayer();
-    for (const b of this.bots) {
-      const sp = this.teamSpawn(b.team, b.slot);
-      b.home.copy(sp.pos);
-      b.yaw = sp.yaw;
-      b.slowT = b.stunT = b.glitchSlowT = b.weakT = b.blindT = 0;
-      b.state = 'hunt'; b.canSee = false; b.seenT = 0; b.target = null;
-      b.vel.set(0, 0, 0);
-      b.model.group.rotation.set(0, b.yaw, 0);
-      b.respawn();
-    }
+    for (const b of this.bots) this.respawnBot(b);
     this.skills.onRoundReset?.();
   }
 
@@ -618,7 +735,7 @@ export class Game {
   finishNet(result) {
     if (this.over) return;
     this.over = true;
-    const win = result.winner === this.myTeam;
+    const win = result.winner === this.myTeam, draw = !result.winner;
     if (win) this.coinsEarned += COIN_WIN;
     save.coins += this.coinsEarned;
     persist();
@@ -626,12 +743,12 @@ export class Game {
     this.weapons.trigger = false;
     $('death').classList.add('hidden');
     $('pause').classList.add('hidden');
-    $('result-title').textContent = win ? '승리!' : '패배';
-    $('result-title').style.color = win ? '#7dffb0' : '#ff5a64';
+    $('result-title').textContent = draw ? '무승부' : win ? '승리!' : '패배';
+    $('result-title').style.color = draw ? '#ffd36b' : win ? '#7dffb0' : '#ff5a64';
     const s = this.score || {}, my = this.myTeam;
     const otherScores = Object.keys(s).filter((t) => t !== my).sort().map((t) => s[t] || 0).join(' : ');
     $('result-body').innerHTML = `
-      ${result.reason === 'left' ? (win ? '상대가 모두 나가서 승리했습니다.' : '경기가 종료되었습니다.') : win ? `${this.net.target}점을 먼저 따냈습니다!` : `상대가 먼저 ${this.net.target}점을 따냈습니다.`}<br>
+      ${result.reason === 'zones' ? (win ? '구역 2개를 먼저 점령했습니다!' : '상대가 구역 2개를 먼저 점령했습니다.') : result.reason === 'time' ? (draw ? '시간 종료 — 점령한 구역 수가 같습니다.' : win ? '시간 종료 — 더 많은 구역을 점령했습니다!' : '시간 종료 — 상대가 더 많은 구역을 점령했습니다.') : result.reason === 'left' ? (win ? '상대가 모두 나가서 승리했습니다.' : '경기가 종료되었습니다.') : win ? `${this.net.target}점을 먼저 따냈습니다!` : `상대가 먼저 ${this.net.target}점을 따냈습니다.`}<br>
       점수 <b>${s[my] || 0} : ${otherScores || 0}</b><br>
       획득 코인 <span class="coin">◆ ${this.coinsEarned.toLocaleString()}</span>
       ${this.statsTable()}`;

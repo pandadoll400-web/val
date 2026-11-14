@@ -10,12 +10,14 @@ const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no O/0/I/1
 const randomCode = () => Array.from({ length: 5 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
 
 /** players per team for each online mode (ffa: 3 teams of 1) */
-export const TEAM_SIZE = { duel: 1, ffa: 1, team: 2, duo: 2 };
+export const TEAM_SIZE = { duel: 1, ffa: 1, team: 2, dom: 2, duo: 2 };
 /** room slots (people + AI) per mode */
-export const ROOM_SLOTS = { duel: 2, ffa: 3, team: 4, duo: 2 };
+export const ROOM_SLOTS = { duel: 2, ffa: 3, team: 4, dom: 4, duo: 2 };
 /** round wins needed to win the match (one kill = one round) */
-export const WIN_KILLS = { duel: 5, ffa: 5, team: 5, duo: 5 };
-export const MODE_NAMES = { duel: '듀얼 1대1', ffa: '개인전 1대1대1', team: '팀전 2대2', duo: '듀오 2대2 매칭' };
+export const WIN_KILLS = { duel: 5, ffa: 5, team: 5, dom: 2, duo: 5 };
+export const MODE_NAMES = { duel: '듀얼 1대1', ffa: '개인전 1대1대1', team: '팀전 2대2', dom: '점령전 2대2', duo: '듀오 2대2 매칭' };
+/** domination: seconds to capture one zone, match time limit */
+export const CAPTURE_TIME = 20, DOM_TIME = 360;
 export const ROUND_TIME = 90, OVERTIME = 30; // seconds
 const MAX_ROOM = 4;
 const BOT_NAMES = ['AI 블리자드', 'AI 툰드라', 'AI 글래셔', 'AI 폴라리스', 'AI 아발란체', 'AI 서리발톱', 'AI 눈보라', 'AI 북풍'];
@@ -25,7 +27,7 @@ export function roomSlots(players, bots, mode, teams = {}) {
   const list = Object.entries(players || {}).sort((a, b) => (a[1].joined || 0) - (b[1].joined || 0)).map(([id, p]) => ({ id, ...p, bot: false }))
     .concat(Object.entries(bots || {}).sort((a, b) => (a[1].added || 0) - (b[1].added || 0)).map(([id, b]) => ({ id, ...b, bot: true })));
   const letters = ['A', 'B', 'C', 'D'];
-  if (mode === 'team') {
+  if (mode === 'team' || mode === 'dom') {
     const n = { A: 0, B: 0 };
     for (const s of list) {
       let t = teams[s.id];
@@ -162,7 +164,7 @@ export class RoomClient {
 
   /** host (team mode): move a slot to the other team */
   async swapTeam(id) {
-    if (!this.isHost || this.meta?.mode !== 'team') return;
+    if (!this.isHost || (this.meta?.mode !== 'team' && this.meta?.mode !== 'dom')) return;
     const s = this.slots.find((x) => x.id === id);
     if (!s) return;
     const to = s.team === 'A' ? 'B' : 'A';
@@ -260,7 +262,7 @@ export async function createMatch(mode, parties, teams, bots = {}) {
   }
   for (const [id, b] of Object.entries(bots)) players[id] = { ...b, team: teams[id], slot: slot[teams[id]]++, party: parties[0]?.code || '' };
   const startAt = serverNow() + 4000;
-  const map = randomMap(); // every match: a random map
+  const map = mode === 'dom' ? 'camp' : randomMap(); // domination is always at the campsite; otherwise a random map
   const score = {};
   for (const p of Object.values(players)) score[p.team] = 0;
   await set(mref, {
