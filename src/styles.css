@@ -585,7 +585,7 @@ body.touch-mode #crosshair { transform: translate(-50%, -50%) scale(.9); }
 }
 
 /* ================= v1.3 menu theme cycle ================= */
-#menu-fade { position: fixed; inset: 0; z-index: 9; pointer-events: none; opacity: 0; transition: opacity .45s ease; background: #eaf4ff; }
+#menu-fade { position: fixed; inset: 0; z-index: 5; pointer-events: none; opacity: 0; transition: opacity .45s ease; background: #eaf4ff; }
 #menu-fade.on { opacity: 1; }
 #menu-fade.forest { background: #0e1f14; }
 #menu-fade.honey { background: #ffd58a; }
