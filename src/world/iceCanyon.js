@@ -27,7 +27,8 @@ export class IceCanyonWorld {
     this.scene = scene;
     this.layout = layout;
     const T = this.theme = getTheme(themeId);
-    [this.halfW, this.halfL] = T.size || [HALF_W, HALF_L];
+    // the training range (booth at z 76) is built for the default size, whatever the theme
+    [this.halfW, this.halfL] = layout === 'range' ? [HALF_W, HALF_L] : (T.size || [HALF_W, HALF_L]);
     // materials of this map
     const b = T.block;
     this.mats = {
