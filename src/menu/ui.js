@@ -35,8 +35,17 @@ export class MenuUI {
       card.onclick = () => {
         const mode = card.dataset.mode;
         if (mode === 'multi') { this.onDuel?.(); return; }
+        if (mode === 'solo') { // pick a difficulty first
+          const row = $('solo-diff');
+          row.classList.toggle('hidden');
+          row.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.d === (save.soloDiff || 'normal')));
+          return;
+        }
         this.onPlay(mode);
       };
+    });
+    $('solo-diff').querySelectorAll('button').forEach((b) => {
+      b.onclick = () => { save.soloDiff = b.dataset.d; persist(); $('solo-diff').classList.add('hidden'); this.onPlay('solo'); };
     });
 
     this.bindSettings();
@@ -98,7 +107,7 @@ export class MenuUI {
     const wn = (id) => `<b style="color:${RARITY[WEAPONS[id].rarity].color}">${WEAPONS[id].name}</b>`;
     $('loadout-chip').innerHTML = `캐릭터 <b>${c.name}</b> <span style="color:${RARITY[c.rarity].color}">(${RARITY[c.rarity].name})</span>
       · 무기 ${wn(lo.primary)} / ${wn(lo.secondary)} / ${wn(lo.sidearm)}
-      <div class="ver">v1.5.3 · 빌드 ${__BUILD__}</div>`;
+      <div class="ver">v1.6 · 빌드 ${__BUILD__}</div>`;
   }
 
   /* ---------- characters ---------- */

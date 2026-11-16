@@ -8,7 +8,32 @@ import { audio } from '../audio.js';
 const INTERP_DELAY = 110; // ms behind the newest data → always two snapshots to blend between
 const MAX_EXTRAP = 200;   // ms of extrapolation when packets are late
 
-export const F_CROUCH = 1, F_SLIDE = 2, F_INVIS = 4, F_ALIVE = 8, F_GROUND = 16, F_SPRINT = 32, F_SHIELD = 64, F_GOLEM = 128, F_REVIVE = 256;
+export const F_CROUCH = 1, F_SLIDE = 2, F_INVIS = 4, F_ALIVE = 8, F_GROUND = 16, F_SPRINT = 32, F_SHIELD = 64, F_GOLEM = 128, F_REVIVE = 256, F_BIKE = 512;
+
+/** Biker E as seen by others: a simple bicycle under the player */
+export function makeBike() {
+  const g = new THREE.Group();
+  const red = new THREE.MeshStandardMaterial({ color: '#d43a2a', metalness: 0.5, roughness: 0.4 });
+  const tire = new THREE.MeshStandardMaterial({ color: '#141518', roughness: 0.9 });
+  const chrome = new THREE.MeshStandardMaterial({ color: '#cfd6dd', metalness: 1, roughness: 0.25 });
+  const wheels = [];
+  for (const z of [-0.62, 0.62]) {
+    const w = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.05, 8, 26).rotateY(Math.PI / 2), tire);
+    w.position.set(0, 0.36, z); g.add(w); wheels.push(w);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.1, 8).rotateZ(Math.PI / 2), chrome);
+    hub.position.copy(w.position); g.add(hub);
+  }
+  const bar = (len, x, y, z, rx) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, len, 8), red); m.position.set(x, y, z); m.rotation.x = rx; g.add(m); return m; };
+  bar(1.0, 0, 0.62, 0, Math.PI / 2);          // top tube
+  bar(0.62, 0, 0.5, 0.35, -0.6);              // seat tube
+  bar(0.7, 0, 0.6, -0.5, 0.35);               // fork
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.05, 0.26), tire);
+  seat.position.set(0, 0.82, 0.32); g.add(seat);
+  const hb = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.6, 8).rotateZ(Math.PI / 2), chrome);
+  hb.position.set(0, 0.95, -0.62); g.add(hb);
+  g.userData.wheels = wheels;
+  return g;
+}
 
 function nameTag(text, color) {
   const c = document.createElement('canvas');
@@ -81,6 +106,9 @@ export class RemotePlayer {
     this.bubble.visible = false;
     this.model.group.add(this.bubble);
     this._mats = this.model.allMaterials || [];
+    this.bike = makeBike();
+    this.bike.visible = false;
+    this.model.group.add(this.bike);
   }
 
   get eye() { return this.position.clone().setY(this.position.y + 1.6 - this.crouch * 0.7); }
@@ -105,6 +133,7 @@ export class RemotePlayer {
     this.shield = !!(snap.f & F_SHIELD);
     this.golem = !!(snap.f & F_GOLEM);
     this.reviving = !!(snap.f & F_REVIVE);
+    this.onBike = !!(snap.f & F_BIKE);
     this.weaponId = snap.w;
     // new shots since the last snapshot → muzzle flash, tracer, sound on my screen
     if (this.shotSeq >= 0 && snap.seq > this.shotSeq) this.game.net?.playRemoteShots(this, Math.min(4, snap.seq - this.shotSeq), snap.t);
@@ -189,6 +218,14 @@ export class RemotePlayer {
       g.rotation.set(damp(g.rotation.x, 0, 12, dt), this.yaw, 0);
     }
     this.bubble.visible = !!this.shield && this.alive;
+    this.bike.visible = !!this.onBike && this.alive;
+    if (this.bike.visible) {
+      for (const w of this.bike.userData.wheels) w.rotation.x -= Math.hypot(this.vel.x, this.vel.z) * dt * 2.8;
+      this.model.joints.hips.position.y = 0.98 + 0.12;
+      this.model.legs[0].rotation.x = -0.9 + Math.sin(this.walkPhase * 2) * 0.5;
+      this.model.legs[1].rotation.x = -0.9 - Math.sin(this.walkPhase * 2) * 0.5;
+    }
+    this.model.gun.visible = !melee && !this.onBike;
     // Titan golem: bigger, stone-coloured with glowing cracks
     if (this.golem !== this._golemShown) {
       this._golemShown = this.golem;

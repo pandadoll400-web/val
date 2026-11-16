@@ -22,9 +22,18 @@ function hasLOS(world, from, to) {
 
 let nextId = 1;
 
+/** solo difficulty: enemy count, health, accuracy, damage per bullet, reaction time */
+export const DIFFS = {
+  easy:   { name: '쉬움', count: 5, hp: 110, acc: 0.6, dmg: [7, 9], react: 1.2 },
+  normal: { name: '중간', count: 7, hp: 150, acc: 1, dmg: [10, 13], react: 0.8 },
+  hard:   { name: '어려움', count: 9, hp: 180, acc: 1.35, dmg: [13, 16], react: 0.45 },
+};
+
 /** Hostile AI soldier: patrols, spots the player, strafes and shoots in bursts. */
 export class AIBot {
-  constructor(game, pos, index, { passive = false, net = null } = {}) {
+  constructor(game, pos, index, { passive = false, net = null, diff = 'normal' } = {}) {
+    this.diff = DIFFS[diff] || DIFFS.normal;
+    this.charId = net?.char || null; // Crick E steals this character's skills
     this.passive = passive; // training dummy: never moves or attacks, respawns
     // online AI player (simulated by the room host): { uid, team, name, char }
     this.uid = net?.uid || null;
@@ -37,8 +46,8 @@ export class AIBot {
     this.position = pos.clone();
     this.vel = new THREE.Vector3();
     this.yaw = Math.random() * Math.PI * 2;
-    this.hp = 150;
-    this.maxHp = 150;
+    this.hp = this.maxHp = net || passive ? 150 : this.diff.hp;
+    this.rootT = 0;
     this.alive = true;
     this.onGround = true;
 
@@ -116,6 +125,7 @@ export class AIBot {
     }
     if (type === 'slow') this.slowT = Math.max(this.slowT, dur);
     if (type === 'stun') this.stunT = Math.max(this.stunT, dur);
+    if (type === 'root') this.rootT = Math.max(this.rootT, dur);
   }
 
   respawn() {
@@ -173,14 +183,15 @@ export class AIBot {
     if (player.sprinting) chance -= 0.08;
     if (!player.onGround) chance -= 0.1;
     if (player.sliding) chance -= 0.15;
-    if (this.seenT < 0.8) chance *= 0.4;
+    if (this.seenT < this.diff.react) chance *= 0.4;
     if (this.slowT > 0) chance *= 0.7;
-    chance = clamp(chance, 0.05, 0.5);
+    chance = clamp(chance * this.diff.acc, 0.03, 0.5 * Math.max(1, this.diff.acc));
     const hit = Math.random() < chance;
     const end = target.clone();
     if (hit) {
-      const dmg = this.weakT > 0 ? 1 : 10 + Math.floor(Math.random() * 4);
-      if (player === this.game.player) player.applyDamage(dmg, { killer: this.name, killerUid: this.uid, weapon: '소총', fromPos: this.position.clone() });
+      const [d0, d1] = this.diff.dmg;
+      const dmg = this.weakT > 0 ? 1 : d0 + Math.floor(Math.random() * (d1 - d0 + 1));
+      if (player === this.game.player) player.applyDamage(dmg, { killer: this.name, killerUid: this.uid, weapon: '소총', fromPos: this.position.clone(), attacker: this });
       else if (player.isRemote) this.game.net?.sendBotHit(this, player.uid, dmg);
       else player.applyDamage(dmg, { killerUid: this.uid, weapon: '소총', from: 'bot' });
     } else {
@@ -279,7 +290,7 @@ export class AIBot {
         speed = 3.6;
         // shooting
         this.shotT -= dt;
-        if (this.shotT <= 0 && this.seenT > 0.35) {
+        if (this.shotT <= 0 && this.seenT > this.diff.react * 0.45) {
           if (this.burstLeft <= 0) this.burstLeft = 3 + Math.floor(Math.random() * 3);
           this.shoot(player);
           this.burstLeft--;
@@ -301,10 +312,18 @@ export class AIBot {
     if (this.slowT > 0) speed *= 0.5;
     if (this.glitchSlowT > 0) speed /= 3;
     if (game.world.inWater(this.position.x, this.position.z, this.position.y)) speed *= 0.6;
+    if (this.rootT > 0) {
+      // Biker chain: stuck in place (can still turn and shoot)
+      this.rootT -= dt;
+      speed = 0;
+      this._chainFx = (this._chainFx || 0) - dt;
+      if (this._chainFx <= 0) { this._chainFx = 0.3; game.effects.ring?.(this.position.clone().setY(0.08), '#c8ccd2', 0.9, 0.3, 0.06); }
+    }
     if (move.lengthSq() > 0) move.normalize().multiplyScalar(speed);
 
     // stuck → sidestep
     if (this.stuckT > 0) { this.stuckT -= dt; move.copy(this.unstick).multiplyScalar(speed); }
+    if (this.knock) { move.add(this.knock); this.knock.multiplyScalar(Math.max(0, 1 - dt * 6)); if (this.knock.lengthSq() < 0.1) this.knock = null; }
     this.vel.x = damp(this.vel.x, move.x, 8, dt);
     this.vel.z = damp(this.vel.z, move.z, 8, dt);
     this.vel.y -= 22 * dt;

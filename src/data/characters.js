@@ -70,13 +70,13 @@ export const CHARACTERS = [
     color: '#3b2bd8', accent: '#20d0ff',
     desc: '전장을 캔버스로 쓰는 아티스트. 잉크로 적을 덮고 동료의 발걸음을 빠르게 한다.',
     q: { name: '잉크 폭탄', desc: 'Q를 누르고 있으면 왼손의 잉크가 커지고, 떼면 던짐 — 최대 80 피해 · 잉크 위 아군 이동속도 최대 +40%', cd: 10, hold: true },
-    e: { name: '잉크 대시', desc: '이동 방향으로 돌진하며 잉크를 남김 (아군 이동속도 +40%)', cd: 7 },
+    e: { name: '잉크 대시', desc: '이동 방향으로 돌진하며 넓은 잉크를 남김 (아군 이동속도 +40%)', cd: 7 },
   },
   {
     id: 'titan', name: '타이탄', title: '바위 거인', rarity: 'epic', price: 1400,
     color: '#7d6f62', accent: '#ff8a2a',
     desc: '산을 깎아 만든 듯한 거인. 버틸수록 강해지고, 분노하면 돌 골렘이 된다.',
-    q: { name: '거인의 체력', desc: '최대 체력 +20 · 체력 20 회복 (최대 3번 누적, 죽으면 초기화)', cd: 12 },
+    q: { name: '거인의 체력', desc: '최대 체력 +10 · 체력 20 회복 (최대 체력 250까지 누적, 죽으면 초기화)', cd: 3 },
     e: { name: '돌 골렘', desc: '8초간 돌 골렘으로 변신 — 주는 피해 1.6배', cd: 22 },
   },
   {
@@ -91,15 +91,33 @@ export const CHARACTERS = [
     color: '#ff5a1f', accent: '#4fd8ff',
     desc: '불과 물, 두 원소를 동시에 다루는 전설 너머의 존재. 무엇도 그를 상처 입히지 못한다.',
     q: { name: '증기 폭발', desc: '왼손의 물 구슬과 오른손의 화염 구슬을 합쳐 조준한 곳에 6초간 짙은 수증기 — 상대 시야를 가림', cd: 14 },
-    e: { name: '마력 결계', desc: '한 손에 거대한 마법 구슬을 만들어 3초간 모든 공격을 흡수', cd: 18 },
+    e: { name: '마력 결계', desc: '한 손에 거대한 마법 구슬을 만들어 2초간 모든 공격을 흡수', cd: 18 },
   },
   {
     id: 'bloom', name: '블룸', title: '생명의 정원사', rarity: 'infinity', price: 8000,
     color: '#5fc83a', accent: '#ff8fd0',
     desc: '씨앗 하나로 죽음마저 되돌리는 정원사. 그의 꽃이 피어 있는 한 쓰러지지 않는다.',
-    q: { name: '생명의 씨앗', desc: '씨앗을 바닥에 꽂아 즉시 꽃나무를 키운다 — 꽃나무가 있는 동안 죽으면 그 자리에서 되살아남', cd: 60 },
+    q: { name: '생명의 씨앗', desc: '씨앗을 바닥에 꽂아 즉시 꽃나무를 키운다 — 꽃나무가 있는 동안 죽으면 그 자리에서 되살아남', cd: 70 },
     e: { name: '축복의 씨앗', desc: '씨앗 2개 — 하나는 나, 하나는 가장 가까운 아군에게. 각각 무작위: 체력 +30 · 5초간 피해 1.5배 · 10초간 이동속도 1.5배', cd: 18 },
   },
+  {
+    id: 'crick', name: '크릭', title: '스킬 사냥꾼', rarity: 'epic', price: 0,
+    color: '#1fa38a', accent: '#d9ff5a',
+    desc: '상대의 힘을 읽고 끊어내는 사냥꾼. 남의 스킬을 봉인하고, 빼앗아 자기 것처럼 쓴다.',
+    q: { name: '스킬 봉인', desc: '조준한 적의 스킬을 10초간 사용할 수 없게 만든다', cd: 20 },
+    e: { name: '스킬 강탈', desc: '조준한 적의 Q·E 스킬을 10초간 빼앗아 내가 쓴다 (그동안 상대는 스킬 봉인)', cd: 25 },
+  },
+  {
+    id: 'biker', name: '바이커', title: '사슬의 폭주족', rarity: 'legendary', price: 0,
+    color: '#2b2f38', accent: '#ff4a2a',
+    desc: '쇠사슬과 자전거 하나로 협곡을 누비는 폭주족. 붙잡고, 들이받는다.',
+    q: { name: '체인', desc: '조준한 방향으로 쇠사슬을 던져 맞은 적을 2.5초간 묶는다 (이동 불가)', cd: 12 },
+    e: { name: '자전거', desc: '10초간 자전거를 탄다 — 이동속도 1.7배, 사격 불가, 부딪힐 때마다 50 피해 (E로 일찍 내리기)', cd: 22 },
+  },
 ];
+
+/** character prices are set by rarity (rookie is free) */
+const RARITY_PRICE = { common: 0, rare: 2500, epic: 5000, legendary: 10000, mythic: 15000, infinity: 30000 };
+for (const c of CHARACTERS) if (c.id !== 'rookie') c.price = RARITY_PRICE[c.rarity];
 
 export const getCharacter = (id) => CHARACTERS.find((c) => c.id === id) || CHARACTERS[0];

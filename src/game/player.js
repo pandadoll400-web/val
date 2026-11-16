@@ -44,6 +44,8 @@ export class Player {
     this.blindT = 0;      // Glitch E lvl 3: screen covered
     this.shieldT = 0;     // Inferno E: every attack absorbed
     this.inkBoost = 0;    // Inker ink under my feet: +speed
+    this.rootT = 0;       // Biker Q chain: can't move
+    this.silenceT = 0;    // Crick Q: skills locked
     this.inputDir = new THREE.Vector3();
     // slide / crouch
     this.slideT = 0;
@@ -71,7 +73,7 @@ export class Player {
     if (this.game.skills) { this.game.skills.titanStacks = 0; if (this.game.skills.golemT > 0) this.game.skills.endGolem(); }
     this.hp = this.maxHp;
     this.alive = true;
-    this.glitchSlowT = this.weakT = this.blindT = this.shieldT = 0;
+    this.glitchSlowT = this.weakT = this.blindT = this.shieldT = this.rootT = this.silenceT = 0;
     this.speedBuffT = this.slowT = 0;
     this.updateCamera(0);
   }
@@ -101,6 +103,14 @@ export class Player {
       if (this.time - (this._absorbMsg || 0) > 0.4) { this._absorbMsg = this.time; this.game.hud.msg('흡수!', 0.4); audio.skill('absorbHit'); }
       return { killed: false, absorbed: true };
     }
+    // katana guard: anything that is not melee, coming from the front, goes back to whoever sent it
+    const w = this.game.weapons;
+    if (w?.guarding && !info.melee) {
+      const from = info.fromPos;
+      const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+      const to = from ? new THREE.Vector3(from.x - this.pos.x, 0, from.z - this.pos.z).normalize() : null;
+      if (!to || to.dot(fwd) > 0.34) { this.reflect(dmg, info, !!to); return { killed: false, reflected: true }; }
+    }
     this.hp -= dmg;
     this.lastHurt = this.time;
     this.game.hud.hurt(info.fromPos);
@@ -112,6 +122,22 @@ export class Player {
       return { killed: true };
     }
     return { killed: false };
+  }
+
+  /** katana guard: spark, and the damage goes back to the attacker (AI or player) */
+  reflect(dmg, info, aimed) {
+    const g = this.game, cam = g.camera;
+    const spark = cam.position.clone().add(new THREE.Vector3(0, -0.1, -0.7).applyQuaternion(cam.quaternion));
+    g.effects.burst(spark, { count: 10, color: '#fff2a0', speed: 4, size: 0.025, life: 0.25 });
+    audio.click(3200, 0.25); audio.click(5200, 0.18, 0.02);
+    if (this.time - (this._refMsg || 0) > 0.35) { this._refMsg = this.time; g.hud.msg('반사!', 0.45); }
+    if (!aimed) return; // area damage without a source: just blocked
+    const uid = info.killerUid;
+    const target = info.attacker || (uid && (g.remotes[uid] || g.bots.find((b) => b.uid === uid)));
+    if (!target || !target.alive || target === this) return;
+    const res = target.applyDamage(Math.round(dmg), { weapon: '카타나 반사', from: 'player', melee: true });
+    g.hud.hitmarker(res?.killed ? 'kill' : 'hit');
+    if (res?.killed) audio.kill();
   }
 
   /** hit by Glitch E: effects stack with the level (1 slow · 2 + damage 1 · 3 + blind), 3 s each */
@@ -155,11 +181,16 @@ export class Player {
     this.cWas = cDown;
     this.crouching = cDown && !this.sliding;
 
-    this.sprinting = !!keys.ShiftLeft && f > 0 && !w.adsHeld && !w.trigger && !this.crouching && !this.sliding;
+    this.sprinting = !!keys.ShiftLeft && f > 0 && !w.adsHeld && !w.trigger && !this.crouching && !this.sliding && !(this.game.skills?.bikeT > 0);
     let speed = (this.sprinting ? SPRINT : WALK) * w.def.mobility;
     speed *= 1 - 0.45 * w.adsT;
     if (this.crouching) speed *= 0.5;
     if (this.slowT > 0) { this.slowT -= dt; speed *= 0.5; }
+    const bike = this.game.skills?.bikeT > 0;
+    if (bike) speed = WALK * 1.7 * 1.0;
+    if (w.guarding) speed *= 0.6;
+    if (this.rootT > 0) { this.rootT -= dt; speed = 0; }
+    if (this.silenceT > 0) this.silenceT -= dt;
     if (this.glitchSlowT > 0) speed /= 3;
     if (this.inkBoost > 0) speed *= 1 + this.inkBoost;
     if (this.speedBuffT > 0) { this.speedBuffT -= dt; speed *= 1.5; }  // Bloom seed
@@ -189,7 +220,7 @@ export class Player {
       this.vel.z = this.dashDir.z;
     }
 
-    if (keys.Space && this.onGround) {
+    if (keys.Space && this.onGround && this.rootT <= 0 && !(this.game.skills?.bikeT > 0)) {
       if (this.sliding) this.slideT = 0; // slide-jump: keeps horizontal momentum (low air control)
       this.vel.y = JUMP_V;
       this.onGround = false;

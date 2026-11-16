@@ -65,8 +65,8 @@ export const WEAPONS = {
   },
   sniper: {
     id: 'sniper', cat: 'secondary', name: '스나이퍼', model: 'NV-50 볼트액션', kind: 'gun', rarity: 'mythic', price: 3000,
-    desc: '한 발 한 발이 치명적인 볼트액션 저격총. 우클릭 시 8배 스코프. 헤드샷 즉사.',
-    damage: 140, head: 300, fireInterval: 1.25, auto: false, mag: 5, reserve: 30, reload: 3.0,
+    desc: '정밀한 볼트액션 저격총. 우클릭 시 8배 스코프. 몸 50 · 머리 150.',
+    damage: 50, head: 150, fireInterval: 1.25, auto: false, mag: 5, reserve: 30, reload: 3.5,
     range: 450, adsFov: 12, mobility: 0.85, scope: true, cycle: 0.95,
     spread: { hip: 0.07, move: 0.1, ads: 0.0, bloom: 0, maxBloom: 0 },
     recoil: { pitch: 0.05, yaw: 0.01, kickZ: 0.11, kickRX: 0.2 },
@@ -107,6 +107,25 @@ WEAPONS.smoke = {
   stats: { damage: 0, rate: 15, range: 30, mobility: 100 },
 };
 
+WEAPONS.dualmini = {
+  id: 'dualmini', cat: 'secondary', name: '미니소총', model: 'TWIN-M 쌍권 미니소총', kind: 'gun', dual: true, noReload: true, rarity: 'mythic', price: 2600,
+  desc: '작은 소총 2자루를 양손에 들고 번갈아 쏜다. 탄약 3000발 — 재장전이 없다.',
+  damage: 16, head: 32, fireInterval: 0.055, auto: true, mag: 3000, reserve: 0, reload: 0,
+  range: 120, adsFov: 62, mobility: 0.95,
+  spread: { hip: 0.03, move: 0.022, ads: 0.016, bloom: 0.004, maxBloom: 0.05 },
+  recoil: { pitch: 0.004, yaw: 0.006, kickZ: 0.018, kickRX: 0.02 },
+  tracer: '#ffd27a', stats: { damage: 28, rate: 100, range: 35, mobility: 85 },
+};
+
+WEAPONS.katana = {
+  id: 'katana', cat: 'secondary', name: '카타나', model: 'OBORO 장검', kind: 'melee', guard: true, rarity: 'legendary', price: 2400,
+  desc: '좌클릭 베기(85). 우클릭을 누르고 있으면 막기 — 정면에서 온 근접 외 모든 공격(총알·스킬)을 공격자에게 그대로 반사한다. 막는 동안 느려진다.',
+  damage: 85, heavy: 85, back: 130, range: 3.0, mag: 0, reserve: 0, mobility: 1.05, adsFov: 75,
+  lightTime: 0.5, heavyTime: 0.5,
+  spread: { hip: 0, move: 0, ads: 0, bloom: 0, maxBloom: 0 },
+  stats: { damage: 80, rate: 50, range: 8, mobility: 95 },
+};
+
 export const CATEGORIES = [
   { id: "primary", name: "무기1", sub: "돌격" },
   { id: "secondary", name: "무기2", sub: "정밀" },
@@ -114,7 +133,7 @@ export const CATEGORIES = [
 ];
 export const CATEGORY_ORDER = {
   primary: ["smg", "rifle", "shotgun", "lmg"],
-  secondary: ["burst", "dmr", "sniper", "bow"],
+  secondary: ["burst", "dmr", "sniper", "bow", "dualmini", "katana"],
   sidearm: ["pistol", "knife", "grenade", "smoke"],
 };
 export const WEAPON_ORDER = [...CATEGORY_ORDER.primary, ...CATEGORY_ORDER.secondary, ...CATEGORY_ORDER.sidearm];

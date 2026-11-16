@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { makeBike } from '../game/remotePlayer.js';
 import { IDLE_POSE, blendPose, setPose } from '../game/soldier.js';
 import { makeGlowTexture } from '../world/canyonParts.js';
 
@@ -604,6 +605,59 @@ export const EMOTES = {
           if (p.position.y < 0) p.visible = false;
         }
       }
+    },
+  },
+
+  crick: {
+    line: '네 힘은... 이제 내 거야.', lang: 'ko-KR', pitch: 0.85, rate: 0.95, speakAt: 1.8, dur: 4.4, view: 0.3,
+    keys: [
+      [0, {}, {}],
+      [0.7, { shR: [1.5, 0, 0.1], elR: [0.1, 0, 0], torso: [0.1, -0.2, 0], neck: [0.05, -0.2, 0] }, {}],
+      [1.6, { shR: [1.5, 0, 0.1], elR: [0.1, 0, 0], torso: [0.1, -0.2, 0], neck: [0.05, -0.2, 0] }, {}],
+      [2.2, { shR: [0.9, 0, 0.1], elR: [1.4, 0, 0], torso: [-0.1, 0.1, 0], neck: [-0.15, 0, 0] }, {}],
+      [3.3, { shR: [0.9, 0, 0.1], elR: [1.4, 0, 0], shL: [0.3, 0, -0.3], torso: [-0.1, 0.1, 0], neck: [-0.15, 0.2, 0] }, {}],
+      [4.4, {}, {}],
+    ],
+    setup(ctx) {
+      ctx.orbs = [];
+      for (let i = 0; i < 8; i++) {
+        const o = glowSprite(i % 2 ? '#d9ff5a' : '#b47bff', 0.12);
+        o.visible = false; ctx.actorParent.add(o); ctx.props.push(o); ctx.orbs.push(o);
+      }
+      ctx.core = glowSprite('#d9ff5a', 0.3);
+      ctx.model.joints.torso.add(ctx.core); ctx.core.position.set(0.15, 0.55, -0.45); ctx.props.push(ctx.core);
+    },
+    update(ctx, t) {
+      // light orbs fly in from in front and are pulled into the open hand
+      ctx.orbs.forEach((o, i) => {
+        const u = (t - 0.8 - i * 0.12) / 1.2;
+        o.visible = u > 0 && u < 1;
+        if (o.visible) { const a = i * 0.8; o.position.set(Math.cos(a) * (1 - u) * 1.2 + 0.2, 1.3 + Math.sin(a) * (1 - u) * 0.5, -1.4 * (1 - u) - 0.4); }
+      });
+      ctx.core.material.opacity = t > 1.2 && t < 3.6 ? 0.6 + Math.sin(t * 12) * 0.3 : 0;
+      ctx.core.scale.setScalar(0.2 + Math.min(1, Math.max(0, t - 1.2)) * 0.3);
+    },
+  },
+
+  biker: {
+    line: '길을 비켜라!', lang: 'ko-KR', pitch: 0.75, rate: 1.15, speakAt: 0.5, dur: 4.4, view: 0.6,
+    keys: [
+      [0, {}, {}],
+      [0.4, { legL: [-1.2, 0, 0], knL: [-1.2, 0, 0], legR: [-0.6, 0, 0], knR: [-1.6, 0, 0], shL: [1.3, 0, -0.1], shR: [1.3, 0, 0.1], elL: [0.3, 0, 0], elR: [0.3, 0, 0], torso: [0.35, 0, 0] }, { y: 0.32 }],
+      [1.6, { legL: [-0.6, 0, 0], knL: [-1.6, 0, 0], legR: [-1.2, 0, 0], knR: [-1.2, 0, 0], shL: [1.3, 0, -0.1], shR: [1.3, 0, 0.1], elL: [0.3, 0, 0], elR: [0.3, 0, 0], torso: [0.35, 0, 0] }, { y: 0.32, x: 0.5 }],
+      [2.3, { legL: [-1.0, 0, 0], knL: [-1.3, 0, 0], legR: [-1.0, 0, 0], knR: [-1.3, 0, 0], shL: [1.6, 0, -0.1], shR: [1.6, 0, 0.1], elL: [0.2, 0, 0], elR: [0.2, 0, 0], torso: [-0.2, 0, 0], neck: [-0.3, 0, 0] }, { y: 0.45, x: 0.6, rx: -0.35 }],
+      [3.2, { legL: [-1.0, 0, 0], knL: [-1.3, 0, 0], legR: [-1.0, 0, 0], knR: [-1.3, 0, 0], shL: [1.3, 0, -0.1], shR: [2.6, 0, 0.3], elL: [0.3, 0, 0], torso: [0.2, 0, 0] }, { y: 0.32, x: 0.6 }],
+      [4.4, {}, {}],
+    ],
+    setup(ctx) {
+      ctx.bike = makeBike();
+      ctx.model.group.add(ctx.bike); ctx.props.push(ctx.bike);
+    },
+    update(ctx, t, dt) {
+      const show = t > 0.2 && t < 4.1;
+      ctx.bike.visible = show;
+      ctx.bike.position.set(0, -0.32, 0);
+      for (const w of ctx.bike.userData.wheels) w.rotation.x -= dt * 9;
     },
   },
 

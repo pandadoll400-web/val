@@ -254,6 +254,25 @@ export class Effects {
     this.worldLightT = 0.15;
   }
 
+  /** Biker chain: a line of steel links shooting out from `from` to `to` */
+  chain(from, to) {
+    const d = from.distanceTo(to), n = Math.max(3, Math.floor(d / 0.32));
+    const mat = new THREE.MeshStandardMaterial({ color: '#b9c0c8', metalness: 1, roughness: 0.3 });
+    const geo = new THREE.TorusGeometry(0.09, 0.025, 6, 10);
+    const dir = to.clone().sub(from).normalize();
+    for (let i = 0; i <= n; i++) {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.copy(from).lerp(to, i / n);
+      m.lookAt(m.position.clone().add(dir));
+      m.rotateY(Math.PI / 2);
+      if (i % 2) m.rotateX(Math.PI / 2);
+      m.visible = false;
+      const show = i / n * 0.12;
+      let t = 0;
+      this.add(m, 0.9, (dt, k) => { t += dt; m.visible = t >= show; if (k <= 0.03 && i === n) { geo.dispose(); mat.dispose(); } });
+    }
+  }
+
   /* ---- skin kill effects (linger ~4.5s at the kill spot) ---- */
   killFx(kind, pos) {
     pos = pos.clone().setY(0);

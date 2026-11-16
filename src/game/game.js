@@ -5,7 +5,7 @@ import { WeaponSystem } from './weapons.js';
 import { Effects } from './effects.js';
 import { SkillSystem } from './skills.js';
 import { HUD } from './hud.js';
-import { AIBot } from './bots.js';
+import { AIBot, DIFFS } from './bots.js';
 import { save, persist } from '../save.js';
 import { getCharacter } from '../data/characters.js';
 import { audio } from '../audio.js';
@@ -60,6 +60,7 @@ export class Game {
     this.camera = new THREE.PerspectiveCamera(save.fov, innerWidth / innerHeight, 0.05, 2500);
     this.camera.rotation.order = 'YXZ';
     this.character = getCharacter(save.character);
+    this.diff = DIFFS[save.soloDiff] || DIFFS.normal; // solo difficulty
 
     this.mapId = net?.meta.map || window.__forceMap || randomMap(); // __forceMap: test hook
     this.mapName = getTheme(this.mapId).name;
@@ -78,7 +79,7 @@ export class Game {
       return b;
     }) : mode === 'training'
       ? this.world.targetSpots.map((p, i) => new AIBot(this, p, i, { passive: true }))
-      : this.world.enemySpawns(ENEMY_COUNT).map((p, i) => new AIBot(this, p, i));
+      : this.world.enemySpawns(this.diff.count).map((p, i) => new AIBot(this, p, i, { diff: save.soloDiff }));
     this.totalEnemies = this.bots.length;
     if (net) {
       for (const uid of net.others) {
@@ -113,7 +114,7 @@ export class Game {
     audio.init();
     if (this.dom) this.hud.msg(`${this.mapName} · 점령전 — 구역에 ${CAPTURE_TIME}초 서 있으면 점령 · 구역 2개를 먼저 차지하면 승리!`, 4);
     else if (this.net) this.hud.msg(`${this.mapName} · ${MODE_NAMES[this.mode]} — 상대를 모두 쓰러뜨리면 라운드 승리 · ${this.net.target}점 먼저!`, 3.5);
-    else this.hud.msg(this.mode === 'training' ? `${this.mapName} 훈련장 — 표적은 움직이거나 공격하지 않습니다 · Esc로 나가기` : `${this.mapName} — 적 ${this.totalEnemies}명을 모두 처치하라!`, 3.5);
+    else this.hud.msg(this.mode === 'training' ? `${this.mapName} 훈련장 — 표적은 움직이거나 공격하지 않습니다 · Esc로 나가기` : `${this.mapName} · 난이도 ${this.diff.name} — 적 ${this.totalEnemies}명을 모두 처치하라!`, 3.5);
     this.lock();
   }
 
@@ -639,7 +640,7 @@ export class Game {
     if (!this.player.alive || this.frozen || this.over) return;
     const from = this.net.players[v.from];
     this.player.applyDamage(v.dmg, {
-      killer: from?.name || '상대', weapon: v.weapon, fromPos: new THREE.Vector3(v.x, 1, v.z), killerUid: v.from, headshot: v.head,
+      killer: from?.name || '상대', weapon: v.weapon, fromPos: new THREE.Vector3(v.x, 1, v.z), killerUid: v.from, headshot: v.head, melee: !!v.melee,
     });
   }
 
@@ -648,6 +649,8 @@ export class Game {
     if (v.kind === 'slow' || v.kind === 'stun') this.player.slowT = Math.max(this.player.slowT, v.dur || 1);
     else if (v.kind === 'glitch') this.player.applyGlitch(v.dur || 1);
     else if (v.kind === 'bloom') this.skills.applyBloomSeed(v.dur | 0);
+    else if (v.kind === 'silence') this.skills.silence(v.dur || 10);
+    else if (v.kind === 'root') { this.player.rootT = Math.max(this.player.rootT, v.dur || 2.5); this.hud.msg('체인에 묶였습니다!', 1.2); }
   }
 
   onNetFeed(v) {
@@ -700,6 +703,7 @@ export class Game {
     else if (d.k === 'ink') s.createInk(V(d), { ...d.o, visual: true });
     else if (d.k === 'bloom') s.remoteTree(d.from || 'x', d);
     else if (d.k === 'bloomEnd') s.remoteTree(d.from || 'x', null);
+    else if (d.k === 'chain') { this.effects.chain(V(d.a), V(d.b)); audio.skill('rock', this.player.position.distanceTo(V(d.a))); }
   }
 
   onPlayerLeft(uid) {

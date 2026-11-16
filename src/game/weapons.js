@@ -737,7 +737,7 @@ export class WeaponSystem {
   reload() {
     this.inspectT = -1;
     const s = this.slot, def = s.def;
-    if (def.kind !== 'gun' || this.casting) return;
+    if (def.kind !== 'gun' || this.casting || def.noReload) return;
     if (this.reloading || this.drawT < 1 || s.mag >= def.mag || s.reserve <= 0 || this.cycleP >= 0) return;
     this.reloading = true;
     this.reloadP = 0;
@@ -819,13 +819,15 @@ export class WeaponSystem {
       if (this.burstLeft <= 0) { this.burstLeft = 0; this.nextFire = this.time + def.burstDelay / skills.fireRateMul(); }
     }
     this.lastShot = this.time;
+    const md = s.model;
+    if (md.dual) { this.dualSide = !this.dualSide; md.muzzle = this.dualSide ? md.muzzleL : md.muzzleR; md.eject = this.dualSide ? md.ejectL : md.ejectR; }
     this.fireBullets(def);
 
     // recoil
     const r = def.recoil, adsK = 1 - this.adsT * 0.35;
     this.kick.z += r.kickZ * adsK;
     this.kick.rx += r.kickRX * adsK;
-    this.kick.ry += (Math.random() - 0.5) * r.kickRX * 0.3;
+    this.kick.ry += s.model.dual ? (this.dualSide ? 0.02 : -0.02) : (Math.random() - 0.5) * r.kickRX * 0.3;
     this.game.player.addRecoil(r.pitch * adsK, (Math.random() - 0.5) * 2 * r.yaw);
     this.bloom = Math.min(def.spread.maxBloom, this.bloom + def.spread.bloom);
 
@@ -939,7 +941,7 @@ export class WeaponSystem {
     const backstab = botFwd.dot(toBot) > 0.35;
     const dmg = game.player.weakT > 0 ? 1 : Math.round((backstab ? def.back : this.meleeHeavy ? def.heavy : def.damage) * game.skills.damageMul());
     const point = best.position.clone().setY(best.position.y + 1.3);
-    const res = best.applyDamage(dmg, { weapon: def.name, headshot: backstab, from: 'player', point, skin: this.slot.skin });
+    const res = best.applyDamage(dmg, { weapon: def.name, headshot: backstab, from: 'player', point, skin: this.slot.skin, melee: true });
     game.effects.impact(point, toBot.clone().negate(), 'hit');
     game.hud.hitmarker(res.killed ? 'kill' : backstab ? 'head' : 'hit');
     game.hud.damageNumber(point, dmg, backstab);
@@ -1086,7 +1088,8 @@ export class WeaponSystem {
     }
     if (this.autoReloadAt && this.time >= this.autoReloadAt && this.cycleP < 0) { this.autoReloadAt = 0; this.reload(); }
     if (def.kind === 'melee') {
-      if (this.adsHeld && !this.adsUsed && p.alive) { this.melee(true); this.adsUsed = true; }
+      if (def.guard) this.guarding = this.adsHeld && p.alive && this.meleeT < 0 && this.drawT >= 0.9 && !game.skills.bikeT;
+      else if (this.adsHeld && !this.adsUsed && p.alive) { this.melee(true); this.adsUsed = true; }
       if (!this.adsHeld) this.adsUsed = false;
       if (this.meleeT >= 0) {
         this.meleeT += dt / (this.meleeHeavy ? def.heavyTime : def.lightTime);
@@ -1094,6 +1097,8 @@ export class WeaponSystem {
         if (this.meleeT >= 1) this.meleeT = -1;
       }
     }
+    if (!def.guard) this.guarding = false;
+    this.guardT = damp(this.guardT || 0, this.guarding ? 1 : 0, 16, dt);
     if (def.kind === 'bow') this.updateBow(dt);
     if (def.kind === 'grenade') this.updateThrow(dt);
     this.updateArrows(dt);
@@ -1113,7 +1118,8 @@ export class WeaponSystem {
       else { this.inspectT += dt / 2.6; if (this.inspectT >= 1) this.inspectT = -1; }
     }
 
-    if (this.trigger && p.alive && (def.auto || !this.triggerUsed)) this.tryFire();
+    const onBike = game.skills.bikeT > 0;
+    if (this.trigger && p.alive && !onBike && (def.auto || !this.triggerUsed)) this.tryFire();
     if (this.burstLeft > 0 && p.alive && this.time >= this.nextFire) this.tryFire(true);
 
     this.bloom = damp(this.bloom, 0, 5, dt);
@@ -1126,7 +1132,7 @@ export class WeaponSystem {
 
     // ---- root pose ----
     const e = smooth(this.adsT);
-    const pos = new THREE.Vector3().copy(m.hip).lerp(new THREE.Vector3(0, -m.sightY * VM_SCALE, m.adsZ * 0.85), e);
+    const pos = new THREE.Vector3().copy(m.hip).lerp(m.dual ? m.hip : new THREE.Vector3(0, -m.sightY * VM_SCALE, m.adsZ * 0.85), e);
     const bobA = p.bobAmt * (1 - e * 0.85);
     pos.x += Math.cos(p.bobPhase) * 0.011 * bobA + this.sway.x * (1 - e * 0.8);
     pos.y += -Math.abs(Math.sin(p.bobPhase)) * 0.012 * bobA + this.sway.y * (1 - e * 0.8);
@@ -1159,6 +1165,11 @@ export class WeaponSystem {
         : kf([[0, Z3], [0.2, [0.4, -0.3 * sd, 0.6 * sd]], [0.45, [-0.3, 0.7 * sd, -0.9 * sd]], [0.7, [-0.2, 0.4 * sd, -0.6 * sd]], [1, Z3]], t);
       pos.add(new THREE.Vector3(mp[0], mp[1], mp[2]));
       irot = mr;
+    }
+    if (this.guardT > 0.01) {
+      const gk = smooth(this.guardT);
+      pos.add(new THREE.Vector3(-0.13 * gk, 0.07 * gk, -0.02 * gk));
+      irot = [irot[0] + 0.15 * gk, irot[1] + 0.5 * gk, irot[2] + 1.3 * gk];
     }
     if (this.inspectT >= 0) {
       const t = this.inspectT;
@@ -1234,7 +1245,8 @@ export class WeaponSystem {
 
     // ---- cameras / scope ----
     this.scoped = !!def.scope && this.adsT > 0.55;
-    this.root.visible = !this.scoped && p.alive && cr < 0.97;
+    this.root.visible = !this.scoped && p.alive && cr < 0.97 && !onBike;
+    this.updateBikeBar(dt, onBike && p.alive);
     const cam = game.camera;
     const baseFov = save.fov;
     cam.fov = baseFov + (def.adsFov - baseFov) * e + 9 * this.slideAmt * (1 - e);
@@ -1242,6 +1254,43 @@ export class WeaponSystem {
     cam.updateProjectionMatrix();
     this.vmCamera.fov = 56 - 10 * e;
     this.vmCamera.updateProjectionMatrix();
+  }
+
+  /** Biker E: handlebars + both hands in front of the camera while riding */
+  updateBikeBar(dt, on) {
+    if (!this.bikeBar) {
+      if (!on) return;
+      const g = new THREE.Group();
+      const metal = new THREE.MeshStandardMaterial({ color: '#d43a2a', metalness: 0.6, roughness: 0.35 });
+      const chrome = new THREE.MeshStandardMaterial({ color: '#cfd6dd', metalness: 1, roughness: 0.2 });
+      const grip = new THREE.MeshStandardMaterial({ color: '#141518', roughness: 0.9 });
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.62, 12).rotateZ(Math.PI / 2), chrome);
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.2, 12), metal);
+      stem.position.set(0, -0.1, 0.02);
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.4), metal);
+      frame.position.set(0, -0.2, -0.12); frame.rotation.x = -0.5;
+      const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.025, 8, 28).rotateY(Math.PI / 2), grip);
+      wheel.position.set(0, -0.36, -0.36);
+      g.add(bar, stem, frame, wheel);
+      for (const sx of [-1, 1]) {
+        const gp = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.1, 10).rotateZ(Math.PI / 2), grip);
+        gp.position.x = sx * 0.28; g.add(gp);
+        const arm = makeArm(this.sleeve, sx);
+        arm.scale.setScalar(VM_SCALE);
+        arm.position.set(sx * 0.28, -0.02, 0.06);
+        g.add(arm);
+      }
+      g.position.set(0, -0.19, -0.5);
+      this.bikeBar = g;
+      this.bikeBar.visible = false;
+      this.vmScene.add(g);
+    }
+    this.bikeBar.visible = on;
+    if (on) {
+      const p = this.game.player;
+      this.bikeBar.rotation.z = Math.sin(p.bobPhase) * 0.04;
+      this.bikeBar.position.y = -0.19 + Math.abs(Math.sin(p.bobPhase)) * 0.008;
+    }
   }
 
   /** Slide legs: lead leg stretched forward, other leg tucked; they slide in from below. */

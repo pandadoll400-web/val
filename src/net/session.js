@@ -3,7 +3,7 @@ import {
   getDb, ref, set, get, push, remove, onValue, onChildAdded, onChildChanged, onChildRemoved, off,
   onDisconnect, runTransaction, serverNow,
 } from './firebase.js';
-import { F_CROUCH, F_SLIDE, F_INVIS, F_ALIVE, F_GROUND, F_SPRINT, F_SHIELD, F_GOLEM, F_REVIVE } from '../game/remotePlayer.js';
+import { F_CROUCH, F_SLIDE, F_INVIS, F_ALIVE, F_GROUND, F_SPRINT, F_SHIELD, F_GOLEM, F_REVIVE, F_BIKE } from '../game/remotePlayer.js';
 import { audio } from '../audio.js';
 import { WEAPONS } from '../data/weapons.js';
 
@@ -131,6 +131,7 @@ export class NetSession {
     if (p.shieldT > 0) f |= F_SHIELD;
     if (g.skills.golemT > 0) f |= F_GOLEM;
     if (g.skills.reviving) f |= F_REVIVE;
+    if (g.skills.bikeT > 0) f |= F_BIKE;
     const t = this.tracerEnd || p.position;
     const data = [r2(p.position.x), r2(p.position.y), r2(p.position.z), r3(p.yaw), r3(p.pitch), g.weapons.def.id, f,
       Math.max(0, Math.round(p.hp)), this.shotSeq, r2(t.x), r2(t.y), r2(t.z), Math.round(serverNow())];
@@ -185,13 +186,13 @@ export class NetSession {
     if (!v || this.ended) return;
     const bot = this.game?.bots.find((b) => b.uid === botId);
     if (!bot || this.game.frozen) return;
-    if (v.type === 'hit') bot.applyDamage(v.dmg, { killerUid: v.from, weapon: v.weapon, headshot: v.head, from: 'net' });
+    if (v.type === 'hit') bot.applyDamage(v.dmg, { killerUid: v.from, weapon: v.weapon, headshot: v.head, from: 'net', melee: !!v.melee });
     else if (v.type === 'eff') bot.applyEffect(v.kind, v.dur);
   }
 
   sendHit(to, dmg, info = {}) {
     const p = this.game.player.position;
-    this.send(to, 'hit', { dmg: Math.round(dmg), head: !!info.headshot, weapon: info.weapon || '', x: r2(p.x), z: r2(p.z) });
+    this.send(to, 'hit', { dmg: Math.round(dmg), head: !!info.headshot, weapon: info.weapon || '', x: r2(p.x), z: r2(p.z), melee: !!info.melee });
   }
 
   sendEffect(to, kind, dur) { this.send(to, 'eff', { kind, dur }); }

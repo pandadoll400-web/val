@@ -803,7 +803,73 @@ function smoke() {
   return m;
 }
 
-export const GUN_BUILDERS = { pistol, knife, smg, shotgun, rifle, bow, dmr, sniper, lmg, burst, grenade, smoke };
+
+/* ======================= DUAL MINI RIFLES (one in each hand) ======================= */
+function miniRifle(g, x) {
+  const h = new THREE.Group();
+  h.position.x = x;
+  g.add(h);
+  prof(h, [[-0.05, 0.0], [0.13, 0.0], [0.13, 0.048], [0.12, 0.055], [-0.04, 0.055], [-0.05, 0.046]], 0.04, VM.metal, 0.004);
+  prof(h, [[-0.04, 0.0], [0.1, 0.0], [0.1, -0.018], [0.02, -0.022], [-0.04, -0.01]], 0.038, VM.poly, 0.003);
+  const hg = part(h, new THREE.CylinderGeometry(0.022, 0.022, 0.13, 8).rotateX(Math.PI / 2), VM.poly, 0, 0.03, -0.2);
+  hg.rotation.z = Math.PI / 8;
+  part(h, C(0.008, 0.07), VM.metal, 0, 0.032, -0.3);
+  prof(h, [[0.32, 0.02], [0.36, 0.02], [0.36, 0.045], [0.32, 0.045]], 0.024, VM.metal, 0.003);
+  rail(h, 0.055, 0.03, -0.24, 0.02);
+  part(h, B(0.024, 0.02, 0.04), VM.poly, 0, 0.072, -0.06);
+  part(h, B(0.026, 0.026, 0.002), VM.glass, 0, 0.085, -0.081);
+  part(h, new THREE.SphereGeometry(0.0018, 8, 6), VM.red, 0, 0.085, -0.08);
+  prof(h, [[-0.004, -0.01], [0.034, -0.01], [0.02, -0.09], [-0.014, -0.092], [-0.01, -0.03]], 0.03, VM.poly, 0.004);
+  prof(h, [[0.06, -0.015], [0.1, -0.015], [0.105, -0.13], [0.07, -0.13]], 0.026, VM.metal2, 0.003); // drum-style tall mag
+  part(h, C(0.03, 0.026).rotateY(Math.PI / 2), VM.accent, 0, -0.12, -0.085);
+  part(h, B(0.03, 0.03, 0.12), VM.rubber, 0, 0.025, 0.12);                                          // stub stock
+  return { muzzle: point(h, 0, 0.032, -0.36), eject: point(h, x > 0 ? 0.03 : -0.03, 0.04, -0.03) };
+}
+
+function dualmini() {
+  const g = new THREE.Group();
+  const R = miniRifle(g, 0), L = miniRifle(g, -0.36);
+  L.muzzle.parent.position.y = 0.05;
+  return {
+    group: g, kind: 'mag', dual: true,
+    muzzle: R.muzzle, muzzleR: R.muzzle, muzzleL: L.muzzle, eject: R.eject, ejectR: R.eject, ejectL: L.eject,
+    sightY: 0.085, hip: new THREE.Vector3(0.2, -0.2, -0.36), adsZ: -0.25,
+    grip: new THREE.Vector3(0, -0.045, 0.012), leftRest: new THREE.Vector3(-0.36, 0.005, 0.012),
+    flashScale: 0.6,
+  };
+}
+
+/* ======================= KATANA ======================= */
+function katana() {
+  const g = new THREE.Group();
+  const blade = new THREE.MeshStandardMaterial({ color: '#d5dde5', metalness: 1, roughness: 0.15, roughnessMap: VM.steel.roughnessMap });
+  blade.userData.skinSlot = 'blade';
+  const edge = new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 1, roughness: 0.05, emissive: '#9fd8ff', emissiveIntensity: 0.15 });
+  // long, slightly curved blade (forward = -z)
+  prof(g, [[0.05, -0.012], [0.4, -0.006], [0.66, 0.012], [0.74, 0.03], [0.7, 0.032], [0.4, 0.014], [0.05, 0.012]], 0.006, blade, 0.0012);
+  prof(g, [[0.06, -0.012], [0.4, -0.006], [0.66, 0.012], [0.735, 0.029], [0.66, 0.018], [0.4, 0.0], [0.06, -0.006]], 0.0072, edge, 0.0005);
+  // habaki + round tsuba (guard)
+  part(g, B(0.012, 0.03, 0.02), VM.brass, 0, 0.0, -0.045);
+  part(g, C(0.042, 0.008, 24), VM.metal, 0, 0.0, -0.032);
+  part(g, new THREE.TorusGeometry(0.04, 0.003, 6, 24), VM.brass, 0, 0, -0.032);
+  // wrapped handle (tsuka) + kashira
+  part(g, CT(0.016, 0.015, 0.2), VM.rubber, 0, 0, 0.075);
+  for (let i = 0; i < 7; i++) {
+    const d = part(g, B(0.034, 0.008, 0.012), VM.accent, 0, 0, -0.01 + i * 0.026);
+    d.rotation.z = Math.PI / 4;
+  }
+  part(g, C(0.017, 0.02), VM.metal2, 0, 0, 0.18);
+  g.rotation.set(0.5, 0.15, -0.3);
+  return {
+    group: g, kind: 'melee', bladeTip: point(g, 0, 0.03, -0.74),
+    muzzle: point(g, 0, 0.03, -0.74), eject: point(g, 0, 0, 0),
+    sightY: 0, hip: new THREE.Vector3(0.16, -0.17, -0.32), adsZ: -0.3,
+    grip: new THREE.Vector3(0, -0.01, 0.06), leftRest: new THREE.Vector3(-0.25, -0.5, 0.1),
+    flashScale: 0,
+  };
+}
+
+export const GUN_BUILDERS = { pistol, knife, smg, shotgun, rifle, bow, dmr, sniper, lmg, burst, grenade, smoke, dualmini, katana };
 
 // which skin slot each shared viewmodel material maps to
 const SKIN_SLOT = new Map([

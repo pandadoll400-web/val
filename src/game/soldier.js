@@ -243,6 +243,25 @@ export function makeSoldier(color = '#4f7fa8', accent = '#9be8ff', style = 'enem
     add(torso, box(0.04, 0.3, 0.01), glow, 0, 0.42, -0.245, 'body', 0, 0, 0.3); // crack
     add(torso, box(0.5, 0.45, 0.12), plate, 0, 0.42, 0.22);                  // back plate
 
+  } else if (style === 'crick') {
+    // hunter's hood with a glowing eye slit, a stolen-power orb on the belt and a crystal on the right hand
+    hadd(box(0.34, 0.24, 0.35), body, 0, 0.21, 0.015);                        // hood
+    hadd(box(0.36, 0.06, 0.12), body, 0, 0.32, -0.12, 0.4);                   // hood brim
+    hadd(box(0.26, 0.03, 0.02), glow, 0, 0.16, -0.168);                       // eye slit
+    add(torso, box(0.5, 0.06, 0.32), dark, 0, 0.02, 0);                       // belt
+    add(torso, new THREE.SphereGeometry(0.06, 12, 10), glow, 0.18, 0.02, -0.17);
+    add(R.hand, new THREE.OctahedronGeometry(0.05, 0), glow, 0, -0.1, 0);
+    add(torso, box(0.56, 0.7, 0.03), accentMat, 0, 0.25, 0.2, 'body', 0.06);  // short cloak
+  } else if (style === 'biker') {
+    // full-face moto helmet, leather jacket with studs, chain over the shoulder
+    hadd(box(0.34, 0.3, 0.35), dark, 0, 0.2, 0.005);                          // helmet shell
+    hadd(box(0.3, 0.1, 0.03), glow, 0, 0.2, -0.17);                           // visor
+    hadd(box(0.36, 0.04, 0.36), accentMat, 0, 0.3, 0.005);                    // stripe
+    const steel = new THREE.MeshStandardMaterial({ color: '#b9c0c8', metalness: 1, roughness: 0.3 });
+    mats.push(steel);
+    for (let i = 0; i < 7; i++) add(torso, new THREE.TorusGeometry(0.035, 0.012, 5, 8), steel, -0.22 + i * 0.075, 0.62 - i * 0.07, -0.18, 'body', 0, 0, 0.8);
+    for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) add(torso, new THREE.SphereGeometry(0.018, 6, 5), steel, sx * 0.15, 0.55 - i * 0.12, -0.19);
+    add(torso, box(0.52, 0.12, 0.36), accentMat, 0, 0.66, 0);                 // collar
   } else {
     helmet();
     hadd(box(0.28, 0.09, 0.03), glow, 0, 0.15, -0.15);                     // visor

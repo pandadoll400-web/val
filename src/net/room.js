@@ -21,7 +21,7 @@ export const CAPTURE_TIME = 20, DOM_TIME = 360;
 export const ROUND_TIME = 90, OVERTIME = 30; // seconds
 const MAX_ROOM = 4;
 /** online version: everyone in a room must run the same build of the maps / rules (bump when they change) */
-export const NET_VER = 6;
+export const NET_VER = 7;
 const OLD_VER = '게임 버전이 다릅니다 — 둘 다 새로고침(Ctrl+F5)해서 최신 버전으로 맞춘 뒤 다시 들어오세요';
 const BOT_NAMES = ['AI 블리자드', 'AI 툰드라', 'AI 글래셔', 'AI 폴라리스', 'AI 아발란체', 'AI 서리발톱', 'AI 눈보라', 'AI 북풍'];
 

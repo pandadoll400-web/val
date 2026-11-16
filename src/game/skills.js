@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { audio } from '../audio.js';
 import { makeNote } from './weapons.js';
+import { CHARACTERS, getCharacter } from '../data/characters.js';
 
 const iceWallMat = new THREE.MeshStandardMaterial({
   color: '#bfe9ff', emissive: '#2a8fd8', emissiveIntensity: 0.45, roughness: 0.08, metalness: 0.1,
@@ -93,7 +94,14 @@ export class SkillSystem {
     this.bloomTree = null; // Bloom: planted life tree (revive point)
     this.bloomDmgT = 0;    // Bloom seed: weapon damage x1.5
     this.remoteTrees = {}; // Bloom trees planted by other players (visual only)
+    this.stolen = null;    // Crick E: { char, t, cd } skills taken from an enemy
+    this.bikeT = 0;        // Biker E: riding
+    this.bikeHits = new Map();
   }
+
+  /** the character whose Q/E I am using right now (Crick: the stolen one) */
+  get activeChar() { return this.stolen?.char || this.char; }
+  get curCd() { return this.stolen ? this.stolen.cd : this.cd; }
 
   /** key released: fire a held skill (Frost E) */
   release(key) {
@@ -105,8 +113,9 @@ export class SkillSystem {
     if (!this.p.alive || this.game.paused) return;
     if (ch.t < 0.25) { this.game.hud.msg('조금 더 길게 눌러 구체를 모으세요', 1.2); return; }
     ch.power = Math.min(1, Math.max(0, (ch.t - 0.25) / 1.75)); // 0 = 35 dmg, 1 (2 s) = 100 dmg
-    this[`${this.char.id}_${key}_release`]?.(ch);
-    this.cd[key] = this.char[key].cd;
+    const ac = ch.char || this.activeChar;
+    this[`${ac.id}_${key}_release`]?.(ch);
+    (this.stolen && this.stolen.char === ac ? this.stolen.cd : this.cd)[key] = ac[key].cd;
     this.game.hud.skillFlash(key);
   }
 
@@ -124,13 +133,154 @@ export class SkillSystem {
   onPlayerShot() { if (this.invisT > 0) this.endInvis(); }
 
   use(key) {
-    const game = this.game, def = this.char[key];
+    const game = this.game;
     if (!game.player.alive) return;
-    if (this.cd[key] > 0) { game.hud.msg(`${def.name} 재사용 대기 ${Math.ceil(this.cd[key])}초`); return; }
-    const used = this[`${this.char.id}_${key}`]?.();
+    if (this.p.silenceT > 0) { game.hud.msg(`스킬 봉인됨 — ${Math.ceil(this.p.silenceT)}초`, 0.8); return; }
+    // Biker: E again while riding = get off early
+    if (key === 'e' && this.bikeT > 0 && this.activeChar.id === 'biker') { this.endBike(); return; }
+    const ac = this.activeChar, def = ac[key], cds = this.curCd;
+    if (cds[key] > 0) { game.hud.msg(`${def.name} 재사용 대기 ${Math.ceil(cds[key])}초`); return; }
+    const used = this[`${ac.id}_${key}`]?.();
+    if (this.charging && !this.charging.char) this.charging.char = ac;
     if (used !== false) {
-      this.cd[key] = def.cd;
+      (this.stolen && this.stolen.char === ac ? this.stolen.cd : this.cd)[key] = def.cd;
       game.hud.skillFlash(key);
+    }
+  }
+
+  /** hit by Crick Q (or my skills were stolen): no skills for a while, running ones stop */
+  silence(secs) {
+    this.p.silenceT = Math.max(this.p.silenceT, secs);
+    this.cancelCharge();
+    if (this.invisT > 0) this.endInvis();
+    if (this.golemT > 0) this.endGolem();
+    if (this.bikeT > 0) this.endBike();
+    if (this.p.shieldT > 0) { this.p.shieldT = 0; this.game.weapons.endCast(); }
+    this.game.hud.msg(`스킬 봉인! ${Math.round(secs)}초간 스킬 사용 불가`, 1.6);
+    this.game.hud.flashTint('rgba(160,90,255,.35)');
+    audio.skill('glitch');
+  }
+
+  /** enemy under the crosshair (or the closest one in a narrow cone in front) */
+  aimEnemy(range = 40) {
+    const game = this.game, cam = game.camera, dir = this.forward();
+    ray.set(cam.position, dir);
+    ray.far = range;
+    const hit = ray.intersectObjects(game.world.solids.concat(game.enemyMeshes()), false)[0];
+    let e = hit?.object.userData.enemy;
+    if (!e || !e.alive) {
+      e = null;
+      let best = 0.94;
+      for (const b of this.enemies()) {
+        const to = this.chest(b).sub(cam.position);
+        const d = to.length();
+        if (d > 25) continue;
+        const dot = to.normalize().dot(dir);
+        if (dot > best) { best = dot; e = b; }
+      }
+    }
+    const end = e ? this.chest(e) : hit ? hit.point : cam.position.clone().addScaledVector(dir, range);
+    return { e, end };
+  }
+
+  /* ================= 크릭 ================= */
+  crick_q() {
+    const { e, end } = this.aimEnemy();
+    const from = this.game.weapons.muzzleWorld();
+    this.fx.lightning(from, end, '#b47bff', 0.03);
+    this.game.net?.fx({ k: 'zap', a: { x: from.x, y: from.y, z: from.z }, b: { x: end.x, y: end.y, z: end.z }, c: '#b47bff' });
+    audio.skill('glitch');
+    if (!e) { this.game.hud.msg('빗나감', 1); this.cd.q = 1.5; return false; }
+    e.applyEffect('silence', 10);
+    this.fx.burst(end, { count: 26, color: '#b47bff', speed: 5, size: 0.05, gravity: 0, life: 0.7 });
+    this.fx.ring?.(e.position.clone().setY(0.1), '#b47bff', 1.6, 0.6, 0.1);
+    this.game.hud.msg(`${e.name || '적'} — 10초간 스킬 봉인`, 1.6);
+    this.game.hud.hitmarker('head');
+  }
+
+  crick_e() {
+    const { e, end } = this.aimEnemy();
+    const from = this.game.weapons.muzzleWorld();
+    this.fx.lightning(end, from, '#d9ff5a', 0.03);
+    this.game.net?.fx({ k: 'zap', a: { x: end.x, y: end.y, z: end.z }, b: { x: from.x, y: from.y, z: from.z }, c: '#d9ff5a' });
+    if (!e) { this.game.hud.msg('빗나감', 1); this.cd.e = 1.5; return false; }
+    let cid = e.isRemote ? e.profile?.char : e.charId;
+    if (!cid) { // AI without a character: a random one
+      const pool = CHARACTERS.filter((c) => c.id !== 'crick');
+      cid = e.charId = pool[Math.floor(Math.random() * pool.length)].id;
+    }
+    if (cid === 'crick') { this.game.hud.msg('크릭의 스킬은 빼앗을 수 없습니다', 1.4); this.cd.e = 1.5; return false; }
+    const c = getCharacter(cid);
+    this.cancelCharge();
+    this.stolen = { char: c, t: 10, cd: { q: 0, e: 0 } };
+    e.applyEffect('silence', 10);
+    this.fx.burst(this.p.position.clone().setY(1.2), { count: 30, color: '#d9ff5a', speed: 4, size: 0.05, gravity: 0, life: 0.8 });
+    this.game.hud.flashTint('rgba(200,255,90,.3)');
+    this.game.hud.onSkillsChange?.();
+    audio.skill('absorb');
+    this.game.hud.msg(`${c.name}의 스킬을 빼앗았다! 10초 — Q ${c.q.name} · E ${c.e.name}`, 2.2);
+  }
+
+  endSteal() {
+    if (!this.stolen) return;
+    this.cancelCharge();
+    if (this.bikeT > 0) this.endBike();
+    if (this.golemT > 0) this.endGolem();
+    this.stolen = null;
+    this.game.hud.onSkillsChange?.();
+    this.game.hud.msg('빼앗은 스킬이 사라졌습니다', 1.2);
+  }
+
+  /* ================= 바이커 ================= */
+  biker_q() {
+    const { e, end } = this.aimEnemy(25);
+    const from = this.game.weapons.muzzleWorld();
+    this.fx.chain?.(from, end);
+    this.game.net?.fx({ k: 'chain', a: { x: from.x, y: from.y, z: from.z }, b: { x: end.x, y: end.y, z: end.z } });
+    audio.skill('rock');
+    if (!e || e.position.distanceTo(this.p.position) > 26) { this.game.hud.msg('체인이 빗나갔습니다', 1); this.cd.q = 2; return false; }
+    e.applyEffect('root', 2.5);
+    this.fx.ring?.(e.position.clone().setY(0.1), '#c8ccd2', 1.2, 0.6, 0.1);
+    this.game.hud.msg(`${e.name || '적'} 묶음! 2.5초`, 1.3);
+    this.game.hud.hitmarker('hit');
+  }
+
+  biker_e() {
+    this.cancelCharge();
+    this.bikeT = 10;
+    this.bikeHits.clear();
+    this.fx.puff(this.p.position.clone().setY(0.4), '#d8d8d8', 2, 0.5, 0.6);
+    audio.skill('dash');
+    this.game.hud.msg('자전거! 10초 — 부딪히면 50 피해 · E로 내리기', 1.8);
+  }
+
+  endBike() {
+    if (this.bikeT <= 0) return;
+    this.bikeT = 0;
+    this.game.weapons.drawT = 0;
+    this.fx.puff(this.p.position.clone().setY(0.4), '#d8d8d8', 1.6, 0.5, 0.5);
+    audio.swap();
+  }
+
+  updateBike(dt) {
+    if (this.bikeT <= 0) return;
+    this.bikeT -= dt;
+    if (this.bikeT <= 0 || !this.p.alive) { this.bikeT = 0.001; this.endBike(); return; }
+    const p = this.p, sp = Math.hypot(p.vel.x, p.vel.z);
+    if (sp < 4) return;
+    for (const b of this.enemies()) {
+      const dx = b.position.x - p.position.x, dz = b.position.z - p.position.z;
+      if (dx * dx + dz * dz > 1.3 * 1.3 || Math.abs(b.position.y - p.position.y) > 1.5) continue;
+      const last = this.bikeHits.get(b) || -9;
+      if (this.clock - last < 0.8) continue;
+      this.bikeHits.set(b, this.clock);
+      this.damage(b, 50, '자전거');
+      const k = new THREE.Vector3(dx, 0, dz).normalize().multiplyScalar(9);
+      if (!b.isRemote) b.knock = k;
+      this.fx.burst(b.position.clone().setY(1), { count: 16, color: '#ffd36b', speed: 5, size: 0.05, life: 0.4 });
+      this.game.hud.flashTint('rgba(255,200,90,.2)');
+      p.addRecoil(0.03, 0);
+      audio.skill('boom', 0);
     }
   }
 
@@ -459,8 +609,8 @@ export class SkillSystem {
     tr.t -= dt;
     const pos = this.p.position;
     const d = Math.hypot(pos.x - tr.last.x, pos.z - tr.last.z);
-    if (d >= 0.9) {
-      if (tr.kind === 'ink') this.createInk(pos.clone().setY(this.floorBelow(pos.clone().setY(pos.y + 0.5))), { radius: 1.6, t: 5, boost: 0.4 });
+    if (d >= (tr.kind === 'ink' ? 1.8 : 0.9)) {
+      if (tr.kind === 'ink') this.createInk(pos.clone().setY(this.floorBelow(pos.clone().setY(pos.y + 0.5))), { radius: 3.2, t: 5, boost: 0.4 });
       else this.fireAt(pos.clone());
       tr.last.copy(pos);
     }
@@ -781,9 +931,9 @@ export class SkillSystem {
   /** E: a huge magic orb in one hand — every attack for 3 s is absorbed */
   inferno_e() {
     this.game.weapons.startCast('arcane');
-    this.p.shieldT = 3;
+    this.p.shieldT = 2;
     audio.skill('absorb');
-    this.game.hud.msg('마력 결계 — 3초간 모든 공격 흡수', 1.5);
+    this.game.hud.msg('마력 결계 — 2초간 모든 공격 흡수', 1.5);
     this.fx.ring?.(this.p.position.clone().setY(0.1), '#ffb627', 2.5, 0.5, 0.1);
   }
 
@@ -829,7 +979,7 @@ export class SkillSystem {
   inker_e() {
     this.p.dash(26, 0.32);
     this.trail = { t: 0.38, last: this.p.position.clone(), kind: 'ink' };
-    this.createInk(this.p.position.clone().setY(this.floorBelow(this.p.position.clone().setY(0.5))), { radius: 1.6, t: 5, boost: 0.4 });
+    this.createInk(this.p.position.clone().setY(this.floorBelow(this.p.position.clone().setY(0.5))), { radius: 3.2, t: 5, boost: 0.4 });
     this.fx.puff(this.p.position.clone().setY(0.4), '#5a4dff', 2, 0.5, 0.6);
     audio.skill('dash');
     audio.skill('splat');
@@ -977,6 +1127,8 @@ export class SkillSystem {
   }
 
   onRoundReset() {
+    this.endSteal();
+    if (this.bikeT > 0) this.endBike();
     this.bloomDmgT = 0;
     this.p.speedBuffT = 0;
   }
@@ -996,9 +1148,9 @@ export class SkillSystem {
 
   /* ================= 타이탄 (영웅) ================= */
   titan_q() {
-    if (this.titanStacks >= 3) { this.game.hud.msg('최대 체력이 이미 최대입니다 (210)'); return false; }
+    if (this.p.maxHp >= 250) { this.game.hud.msg('최대 체력이 이미 최대입니다 (250)'); return false; }
     this.titanStacks++;
-    this.p.maxHp += 20;
+    this.p.maxHp = Math.min(250, this.p.maxHp + 10);
     this.p.heal(20);
     this.game.hud.flashTint('rgba(255,160,60,.3)');
     this.fx.burst(this.p.position.clone().setY(1), { count: 18, color: '#ffb35a', speed: 3, size: 0.06, gravity: -2, life: 0.9 });
@@ -1129,6 +1281,13 @@ export class SkillSystem {
     this.clock = (this.clock || 0) + dt;
     this.cd.q = Math.max(0, this.cd.q - dt);
     this.cd.e = Math.max(0, this.cd.e - dt);
+    if (this.stolen) {
+      this.stolen.cd.q = Math.max(0, this.stolen.cd.q - dt);
+      this.stolen.cd.e = Math.max(0, this.stolen.cd.e - dt);
+      this.stolen.t -= dt;
+      if (this.stolen.t <= 0 || !this.p.alive) this.endSteal();
+    }
+    this.updateBike(dt);
     if (this.overheatT > 0) this.overheatT -= dt;
     if (this.echoBuffT > 0) this.echoBuffT -= dt;
     if (this.golemT > 0) { this.golemT -= dt; if (this.golemT <= 0 || !this.p.alive) this.endGolem(); }

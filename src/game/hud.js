@@ -35,7 +35,7 @@ export class HUD {
     this.el.dmg.innerHTML = '';
     $('death').classList.add('hidden');
     $('scoreboard').classList.add('hidden');
-    this.el.mode.textContent = `FROST CANYON · ${getThemeName(game)} · ` + (game.net ? MODE_NAMES[game.mode] : game.mode === 'training' ? '훈련장' : '섬멸전');
+    this.el.mode.textContent = `FROST CANYON · ${getThemeName(game)} · ` + (game.net ? MODE_NAMES[game.mode] : game.mode === 'training' ? '훈련장' : `섬멸전 · ${game.diff.name}`);
     this.buildVersus();
     this.buildZones();
     $('hud-char').textContent = `${game.character.name} · ${game.character.title}`;
@@ -49,6 +49,15 @@ export class HUD {
       this.skillEls[k] = { el, cd: el.querySelector('.cd'), time: el.querySelector('.sk-time'), bar: el.querySelector('.sk-bar i'), badge: el.querySelector('.sk-badge') };
     }
     this.onWeaponChange();
+  }
+
+  /** Crick E: the skill buttons show the stolen character's skills while it lasts */
+  onSkillsChange() {
+    const ac = this.game.skills.activeChar, stolen = !!this.game.skills.stolen;
+    for (const k of ['q', 'e']) {
+      this.skillEls[k].el.querySelector('.sk-name').textContent = (stolen ? '⇄ ' : '') + ac[k].name;
+      this.skillEls[k].el.classList.toggle('stolen', stolen);
+    }
   }
 
   /** online: [my team portraits + score] [⌛ round clock] [enemy portraits + score] */
@@ -219,10 +228,12 @@ export class HUD {
 
     // skills
     for (const k of ['q', 'e']) {
-      const se = this.skillEls[k], cd = g.skills.cd[k], max = g.character[k].cd;
-      se.cd.style.setProperty('--p', (cd > 0 ? (cd / max) * 100 : 0) + '%');
-      se.time.textContent = cd > 0.05 ? Math.ceil(cd) : '';
-      se.el.classList.toggle('ready', cd <= 0);
+      const sil = p.silenceT > 0;
+      const se = this.skillEls[k], cd = g.skills.curCd[k], max = g.skills.activeChar[k].cd;
+      se.cd.style.setProperty('--p', sil ? '100%' : (cd > 0 ? (cd / max) * 100 : 0) + '%');
+      se.time.textContent = sil ? '🔒' + Math.ceil(p.silenceT) : cd > 0.05 ? Math.ceil(cd) : '';
+      se.el.classList.toggle('ready', cd <= 0 && !sil);
+      se.el.classList.toggle('silenced', sil);
     }
     if (g.skills.marker) this.skillEls.e.time.textContent = '↩';
     const ch = g.skills.charging;
@@ -236,7 +247,8 @@ export class HUD {
     const steam = g.skills.inSteam;
     if (this._steam !== steam) { this._steam = steam; const so = document.getElementById('steam-overlay'); so.classList.toggle('on', !!steam); so.classList.toggle('smoke', steam === 'smoke'); }
     const badge = g.character.id === 'ghost' ? (g.skills.souls > 0 ? '👻' + g.skills.souls : '') : g.skills.echoBuffT > 0 ? '×1.5' : '';
-    const eb = this.skillEls.e.badge, ebt = g.character.id === 'glitch' ? '◈'.repeat(g.skills.glitchStacks) : '';
+    const st = g.skills.stolen, bk = g.skills.bikeT;
+    const eb = this.skillEls.e.badge, ebt = st ? '⇄' + Math.ceil(st.t) : bk > 0 ? '🚲' + Math.ceil(bk) : g.character.id === 'glitch' ? '◈'.repeat(g.skills.glitchStacks) : '';
     if (eb.textContent !== ebt) eb.textContent = ebt;
     eb.classList.toggle('on', !!ebt);
     eb.classList.toggle('glitch', !!ebt);
