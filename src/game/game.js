@@ -16,6 +16,7 @@ import { MODE_NAMES, ROUND_TIME, OVERTIME, CAPTURE_TIME, DOM_TIME } from '../net
 import { setZoneVisual } from '../world/maps.js';
 import { getTheme, randomMap } from '../world/themes.js';
 import { getPortrait } from '../menu/ui.js';
+import { currentUser } from '../net/auth.js';
 
 const $ = (id) => document.getElementById(id);
 export const ENEMY_COUNT = 7;
@@ -61,6 +62,8 @@ export class Game {
     this.camera.rotation.order = 'YXZ';
     this.character = getCharacter(save.character);
     this.diff = DIFFS[save.soloDiff] || DIFFS.normal; // solo difficulty
+    // the "hack" account: double-tap jump to fly, every hit counts as a headshot
+    this.hack = (currentUser()?.nick || '').toLowerCase() === 'hack';
 
     this.mapId = net?.meta.map || window.__forceMap || randomMap(); // __forceMap: test hook
     this.mapName = getTheme(this.mapId).name;

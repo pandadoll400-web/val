@@ -890,7 +890,7 @@ export class WeaponSystem {
       const normal = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : null;
       if (normal && normal.dot(dir) > 0) normal.negate();
       if (enemy && enemy.alive) {
-        const head = hit.object.userData.part === 'head';
+        const head = this.game.hack || hit.object.userData.part === 'head';
         let dmg = head ? def.head : def.damage;
         if (def.falloffStart && hit.distance > def.falloffStart) dmg *= clamp(1 - (hit.distance - def.falloffStart) / 30, 0.3, 1);
         const h = hits.get(enemy) || { dmg: 0, head: false, point: hit.point };
@@ -1011,7 +1011,7 @@ export class WeaponSystem {
         const enemy = hit.object.userData.enemy;
         a.mesh.position.copy(hit.point).addScaledVector(ray.ray.direction, 0.25);
         if (enemy && enemy.alive) {
-          const head = hit.object.userData.part === 'head';
+          const head = this.game.hack || hit.object.userData.part === 'head';
           const dmg = game.player.weakT > 0 ? 1 : Math.round((def.damage + (def.maxDamage - def.damage) * a.power) * (head ? def.headMul : 1) * game.skills.damageMul());
           const res = enemy.applyDamage(dmg, { weapon: def.name, headshot: head, from: 'player', point: hit.point, skin: a.skin });
           game.hud.hitmarker(res.killed ? 'kill' : head ? 'head' : 'hit');

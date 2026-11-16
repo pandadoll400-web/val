@@ -75,6 +75,7 @@ export class Player {
     this.alive = true;
     this.glitchSlowT = this.weakT = this.blindT = this.shieldT = this.rootT = this.silenceT = 0;
     this.speedBuffT = this.slowT = 0;
+    this.flying = false;
     this.updateCamera(0);
   }
 
@@ -180,6 +181,7 @@ export class Player {
     }
     this.cWas = cDown;
     this.crouching = cDown && !this.sliding;
+    if (this.flying) { this.crouching = false; this.slideT = 0; }
 
     this.sprinting = !!keys.ShiftLeft && f > 0 && !w.adsHeld && !w.trigger && !this.crouching && !this.sliding && !(this.game.skills?.bikeT > 0);
     let speed = (this.sprinting ? SPRINT : WALK) * w.def.mobility;
@@ -220,12 +222,26 @@ export class Player {
       this.vel.z = this.dashDir.z;
     }
 
-    if (keys.Space && this.onGround && this.rootT <= 0 && !(this.game.skills?.bikeT > 0)) {
+    // hack account: double-tap jump toggles flying
+    const spDown = !!keys.Space;
+    if (this.game.hack && spDown && !this._spWas) {
+      if (this.time - (this._spT ?? -9) < 0.4) {
+        this.flying = !this.flying; this._spT = -9;
+        this.game.hud.msg(this.flying ? '비행 모드 — 점프: 위로 · C(앉기): 아래로 · 점프 2번: 끄기' : '비행 끝', 1.6);
+      } else this._spT = this.time;
+    }
+    this._spWas = spDown;
+    if (this.flying) {
+      this.vel.x = damp(this.vel.x, wx * speed * 1.6, 8, dt);
+      this.vel.z = damp(this.vel.z, wz * speed * 1.6, 8, dt);
+      this.vel.y = damp(this.vel.y, keys.Space ? 8 : keys.KeyC ? -8 : 0, 8, dt);
+      if (this.pos.y > 60 && this.vel.y > 0) this.vel.y = 0;
+    } else if (keys.Space && this.onGround && this.rootT <= 0 && !(this.game.skills?.bikeT > 0)) {
       if (this.sliding) this.slideT = 0; // slide-jump: keeps horizontal momentum (low air control)
       this.vel.y = JUMP_V;
       this.onGround = false;
     }
-    this.vel.y -= GRAVITY * dt;
+    if (!this.flying) this.vel.y -= GRAVITY * dt;
 
     const fallSpeed = this.vel.y;
     const wasGround = this.onGround;
