@@ -112,6 +112,7 @@ export class Player {
       const to = from ? new THREE.Vector3(from.x - this.pos.x, 0, from.z - this.pos.z).normalize() : null;
       if (!to || to.dot(fwd) > 0.34) { this.reflect(dmg, info, !!to); return { killed: false, reflected: true }; }
     }
+    if (this.game.hack) { this.hp = this.maxHp || this.hp; this.game.hud.hurt(info.fromPos); return { killed: false }; } // hack account: infinite HP
     this.hp -= dmg;
     this.lastHurt = this.time;
     this.game.hud.hurt(info.fromPos);

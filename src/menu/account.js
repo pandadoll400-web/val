@@ -1,5 +1,5 @@
 import { watchAuth, login, signup, logout, loadAccount, writeSave, authMessage, NICK_RE } from '../net/auth.js';
-import { save, accountData, applyAccountData, setCloudWriter, resetSave, persist } from '../save.js';
+import { save, accountData, applyAccountData, setCloudWriter, resetSave, persist, grantAll } from '../save.js';
 
 const $ = (id) => document.getElementById(id);
 const GUEST_KEY = 'fc.guest';
@@ -38,6 +38,7 @@ export class AccountUI {
           else await writeSave(user.uid, accountData());
           this.nick = acc.profile?.nick || acc.save?.name || save.name;
           save.name = this.nick;
+          if (String(user.nick || this.nick).toLowerCase() === 'hack') grantAll();
           persist(true);
           localStorage.setItem(AUTHED_KEY, '1');
           setCloudWriter((d) => writeSave(user.uid, d).catch((e) => console.warn('cloud save', e)));

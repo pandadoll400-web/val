@@ -77,6 +77,12 @@ export function applyAccountData(data) {
   persist(true);
 }
 
+/** the "hack" account owns every character and weapon */
+export function grantAll() {
+  for (const c of CHARACTERS) if (!save.owned.includes(c.id)) save.owned.push(c.id);
+  for (const id of Object.keys(WEAPONS)) if (!save.ownedWeapons.includes(id)) save.ownedWeapons.push(id);
+}
+
 /** fresh progress for a new account (or after logging out) */
 export function resetSave(name = '') {
   applyAccountData({ coins: DEFAULT.coins, owned: ['rookie'], character: 'rookie', ver: 2, name });
