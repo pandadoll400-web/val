@@ -127,9 +127,9 @@ WEAPONS.katana = {
 };
 
 WEAPONS.flamer = {
-  id: 'flamer', cat: 'primary', name: '화염방사기', model: 'PYRO-9 화염방사기', kind: 'gun', flame: true, rarity: 'legendary', price: 2000,
-  desc: '9m 앞까지 불길을 계속 뿜는다. 불길에 닿은 적은 3초 동안 불타며 0.5초마다 추가 피해를 입는다. 벽은 뚫지 못한다.',
-  damage: 9, head: 12, fireInterval: 0.08, auto: true, mag: 200, reserve: 400, reload: 3.0,
+  id: 'flamer', cat: 'primary', name: '화염방사기', model: 'PYRO-9 화염방사기', kind: 'gun', flame: true, noReload: true, rarity: 'infinity', price: 10000,
+  desc: '9m 앞까지 불길을 계속 뿜는다. 불길에 닿은 적은 3초 동안 불타며 0.5초마다 추가 피해. 연료 100 — 재장전 없이, 쏘기를 멈추면 1초 뒤부터 스스로 충전된다. 벽은 뚫지 못한다.',
+  damage: 6, head: 8, fireInterval: 0.05, auto: true, mag: 100, reserve: 0, reload: 0, recharge: { delay: 1, rate: 30 },
   range: 9, cone: 0.9, burn: { secs: 3, tick: 0.5, dmg: 5 }, adsFov: 68, mobility: 0.9,
   spread: { hip: 0, move: 0, ads: 0, bloom: 0, maxBloom: 0 },
   recoil: { pitch: 0.0008, yaw: 0.001, kickZ: 0.004, kickRX: 0.004 },

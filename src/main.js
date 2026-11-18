@@ -8,7 +8,7 @@ import { CharStage } from './menu/stage.js';
 import { Game } from './game/game.js';
 import { NetSession } from './net/session.js';
 import { audio } from './audio.js';
-import { save } from './save.js';
+import { save, outfitFor } from './save.js';
 import { THEMES } from './world/themes.js';
 import { IS_TOUCH } from './game/touch.js';
 import { AdventUI } from './menu/advent.js';
@@ -127,7 +127,7 @@ function loop() {
   ui.updatePreview(Math.min(raw, 0.25)); // real time, so emotes play at full speed even at low FPS
   const menuIdle = !ui.root.classList.contains('hidden') && !ui.openId && innerWidth > 760;
   if (menuIdle) {
-    menuStage.setEntries([{ charId: save.character, name: save.name }]);
+    menuStage.setEntries([{ charId: save.character, name: save.name, outfit: outfitFor(save.character) }]);
     menuStage.update(dt);
     const W = innerWidth, H = innerHeight;
     menuStage.render(renderer, { x: Math.round(W * 0.5), y: Math.round(H * 0.1), w: Math.round(W * 0.46), h: Math.round(H * 0.72) });

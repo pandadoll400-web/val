@@ -850,6 +850,7 @@ export class WeaponSystem {
       return;
     }
     s.mag--;
+    s.lastShot = this.time;
     this.triggerUsed = true;
     const skills = this.game.skills;
     this.nextFire = this.time + def.fireInterval / skills.fireRateMul();
@@ -1158,6 +1159,14 @@ export class WeaponSystem {
     const relMul = game.skills.reloadMul();
 
     if (this.burns.size) this.updateBurns(dt);
+    // self-recharging fuel (flamethrower): refills a moment after the trigger is let go, held or not
+    for (const sl of this.slots) {
+      const rc = sl.def.recharge;
+      if (!rc || sl.mag >= sl.def.mag || this.time - (sl.lastShot || -9) < rc.delay) continue;
+      sl.chargeAcc = (sl.chargeAcc || 0) + rc.rate * dt;
+      const add = Math.floor(sl.chargeAcc);
+      if (add > 0) { sl.chargeAcc -= add; sl.mag = Math.min(sl.def.mag, sl.mag + add); }
+    }
     m.skinAnim?.(this.time);
     if (this.drawT < 1) this.drawT = Math.min(1, this.drawT + dt / 0.38);
     if (this.reloading) this.updateReload(dt * relMul);
