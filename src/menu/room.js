@@ -1,4 +1,7 @@
 import { THEME_ORDER, getTheme } from '../world/themes.js';
+import { currentUser } from '../net/auth.js';
+
+const isHack = () => (currentUser()?.nick || '').toLowerCase() === 'hack';
 import { RoomClient, friendlyError, TEAM_SIZE, MODE_NAMES, ROOM_SLOTS, NET_VER } from '../net/room.js';
 import { getCharacter } from '../data/characters.js';
 import { CharStage } from './stage.js';
@@ -39,7 +42,8 @@ export class RoomUI {
       b.onclick = () => this.room.setMode(b.dataset.mode).catch((e) => this.ui.toast(friendlyError(e)));
     });
     // map picker: random + every map
-    $('room-maps').innerHTML = '<span class="lbl">맵</span><button data-map="">🎲 랜덤</button>' + THEME_ORDER.map((id) => `<button data-map="${id}">${getTheme(id).name}</button>`).join('');
+    $('room-maps').innerHTML = '<span class="lbl">맵</span><button data-map="">🎲 랜덤</button>' + THEME_ORDER.map((id) => `<button data-map="${id}">${getTheme(id).name}</button>`).join('')
+      + '<button data-map="xmas" class="xmas-map hidden">🎄 크리스마스 마을</button>';
     $('room-maps').querySelectorAll('button').forEach((b) => {
       b.onclick = () => this.room.setMap(b.dataset.map).catch((e) => this.ui.toast(friendlyError(e)));
     });
@@ -130,6 +134,8 @@ export class RoomUI {
       b.classList.toggle('on', dom ? b.dataset.map === 'camp' : duo ? b.dataset.map === '' : b.dataset.map === (m.map || ''));
       b.disabled = !r.isHost || m.state !== 'lobby' || dom || duo;
     });
+    // hack-only map: the button shows for a hack host, and for everyone once it has been picked
+    $('room-maps').querySelector('.xmas-map').classList.toggle('hidden', !(r.isHost && isHack()) && m.map !== 'xmas');
     const start = $('room-start');
     const queued = m.state === 'queue';
     if (m.mode !== 'duo') start.textContent = '시작';

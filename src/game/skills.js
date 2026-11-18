@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { audio } from '../audio.js';
 import { makeNote } from './weapons.js';
 import { CHARACTERS, getCharacter } from '../data/characters.js';
+import { isXmasSkin } from '../data/charSkins.js';
+import { starGeo } from './soldier.js';
 
 const iceWallMat = new THREE.MeshStandardMaterial({
   color: '#bfe9ff', emissive: '#2a8fd8', emissiveIntensity: 0.45, roughness: 0.08, metalness: 0.1,
@@ -145,6 +147,7 @@ export class SkillSystem {
     if (used !== false) {
       (this.stolen && this.stolen.char === ac ? this.stolen.cd : this.cd)[key] = def.cd;
       game.hud.skillFlash(key);
+      if (this.myXmas) game.effects.xmasSparkle(this.p.position.clone().addScaledVector(this.flatForward(), 1.8).setY(this.p.position.y - 0.6));
     }
   }
 
@@ -286,7 +289,20 @@ export class SkillSystem {
 
   /* ---------- helpers ---------- */
   get p() { return this.game.player; }
-  get fx() { return this.game.effects; }
+  get fx() {
+    const fx = this.game.effects;
+    const xmas = this.fxCtx ? this.fxCtx.xmas : this.myXmas;
+    if (!xmas) return fx;
+    // Christmas skin: every effect spawned through this.fx gets the red / green / gold palette
+    return this._xfx ||= new Proxy(fx, {
+      get: (t, k) => {
+        const v = t[k];
+        return typeof v === 'function' ? (...a) => { const o = t.palette; t.palette = 'xmas'; try { return v.apply(t, a); } finally { t.palette = o; } } : v;
+      },
+    });
+  }
+  /** am I wearing a Christmas skin? */
+  get myXmas() { return isXmasSkin(this.game.weapons?.charSkin?.id); }
   enemies() { return this.game.hostiles(); }
   forward() { return new THREE.Vector3(0, 0, -1).applyQuaternion(this.game.camera.quaternion); }
   flatForward() { return new THREE.Vector3(-Math.sin(this.p.yaw), 0, -Math.cos(this.p.yaw)); }
@@ -1007,7 +1023,8 @@ export class SkillSystem {
   }
 
   /* ================= 블룸 (인피니티) ================= */
-  makeLifeTree(pos) {
+  makeLifeTree(pos, xmas = false) {
+    if (xmas) return this.makeXmasTree(pos);
     const g = new THREE.Group();
     const bark = new THREE.MeshStandardMaterial({ color: '#6a4426', roughness: 0.9, flatShading: true });
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.2, 1.6, 8), bark);
@@ -1038,9 +1055,56 @@ export class SkillSystem {
     return { g, ring, grow: 0, pos: pos.clone() };
   }
 
+  /** Bloom's Christmas skin: a decorated Christmas tree instead of the blossom tree */
+  makeXmasTree(pos) {
+    const g = new THREE.Group();
+    const S = (o) => new THREE.MeshStandardMaterial(o);
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.14, 0.5, 8), S({ color: '#5a3a20', roughness: 0.9 }));
+    trunk.position.y = 0.25;
+    g.add(trunk);
+    const leaf = S({ color: '#1f7a36', roughness: 0.8, flatShading: true });
+    for (let i = 0; i < 3; i++) {
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.85 - i * 0.22, 0.8, 10), leaf);
+      c.position.y = 0.75 + i * 0.5;
+      g.add(c);
+    }
+    const star = new THREE.Mesh(starGeo(0.17, 0.05), S({ color: '#ffd24a', emissive: '#ffb000', emissiveIntensity: 1.6, metalness: 0.6, roughness: 0.3 }));
+    star.position.y = 2.25;
+    g.add(star);
+    const cols = ['#e0182a', '#ffd24a', '#2a7bff', '#ff8fd0', '#ffffff'];
+    const lights = [];
+    for (let i = 0; i < 18; i++) {
+      const lvl = i % 3, a = i * 2.4, r = (0.72 - lvl * 0.2) * 0.85, y = 0.55 + lvl * 0.5 + (i % 2) * 0.12;
+      const orn = i % 2 === 0;
+      const m = new THREE.Mesh(new THREE.SphereGeometry(orn ? 0.07 : 0.035, 10, 8), orn ? S({ color: cols[i % 5], metalness: 0.8, roughness: 0.15 }) : S({ color: cols[(i + 2) % 5], emissive: cols[(i + 2) % 5], emissiveIntensity: 2 }));
+      m.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+      g.add(m);
+      if (!orn) lights.push(m);
+    }
+    for (const [x, z, c] of [[0.55, 0.25, '#d0202a'], [-0.45, 0.4, '#2a6ad8'], [0.1, -0.6, '#1f8a3a']]) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.26, 0.3), S({ color: c, roughness: 0.5 }));
+      b.position.set(x, 0.13, z);
+      const rib = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.27, 0.06), S({ color: '#ffd24a', metalness: 0.7, roughness: 0.3 }));
+      b.add(rib);
+      g.add(b);
+    }
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.6, 0.85, 32), new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04;
+    const glow = this.game.effects.glowSprite('#ffd24a', 1.4);
+    glow.position.y = 2.25;
+    g.add(ring, glow);
+    const light = new THREE.PointLight('#ffd27a', 4, 6, 1.5);
+    light.position.y = 1.6;
+    g.add(light);
+    g.position.copy(pos);
+    g.scale.setScalar(0.01);
+    this.game.scene.add(g);
+    return { g, ring, grow: 0, pos: pos.clone(), lights, star, xmas: true };
+  }
+
   removeLifeTree(t, burst = true) {
     if (!t) return;
-    if (burst) this.fx.burst(t.pos.clone().setY(1.6), { count: 30, color: '#ff9fd8', speed: 4, size: 0.07, gravity: 2, life: 1 });
+    if (burst) this.fx.burst(t.pos.clone().setY(1.6), { count: 30, color: t.xmas ? '#ffd24a' : '#ff9fd8', speed: 4, size: 0.07, gravity: 2, life: 1 });
     this.game.scene.remove(t.g);
     t.g.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
   }
@@ -1051,12 +1115,13 @@ export class SkillSystem {
     at.y = this.floorBelow(at.clone().setY(this.p.position.y + 0.3));
     const ok = this.game.weapons.playSeedPlant(() => {
       if (this.bloomTree) { this.removeLifeTree(this.bloomTree); this.game.net?.fx({ k: 'bloomEnd' }); }
-      this.bloomTree = this.makeLifeTree(at);
+      const xmas = this.myXmas;
+      this.bloomTree = this.makeLifeTree(at, xmas);
       this.fx.burst(at.clone().setY(0.2), { count: 24, color: '#9dff5a', speed: 3, size: 0.05, gravity: -1, life: 0.9 });
       this.fx.ring?.(at.clone().setY(0.08), '#9dff7a', 2.5, 0.5, 0.1);
       audio.skill('rock');
-      this.game.net?.fx({ k: 'bloom', x: at.x, y: at.y, z: at.z });
-      this.game.hud.msg('생명의 꽃나무 — 죽으면 이 자리에서 되살아납니다', 2);
+      this.game.net?.fx({ k: 'bloom', x: at.x, y: at.y, z: at.z, xmas: xmas ? 1 : 0 });
+      this.game.hud.msg(xmas ? '크리스마스 트리 — 죽으면 이 자리에서 되살아납니다' : '생명의 꽃나무 — 죽으면 이 자리에서 되살아납니다', 2);
     });
     if (!ok) return false;
   }
@@ -1123,7 +1188,7 @@ export class SkillSystem {
   remoteTree(from, d) {
     this.removeLifeTree(this.remoteTrees[from], false);
     delete this.remoteTrees[from];
-    if (d) this.remoteTrees[from] = this.makeLifeTree(new THREE.Vector3(d.x, d.y, d.z));
+    if (d) this.remoteTrees[from] = this.makeLifeTree(new THREE.Vector3(d.x, d.y, d.z), !!d.xmas);
   }
 
   onRoundReset() {
@@ -1143,6 +1208,10 @@ export class SkillSystem {
       t.g.scale.setScalar(Math.max(0.01, k * (1 + Math.sin(this.clock * 2) * 0.02)));
       t.ring.material.opacity = 0.35 + Math.sin(this.clock * 3) * 0.2;
       t.ring.rotation.z += dt * 0.5;
+      if (t.xmas) {
+        t.star.rotation.y += dt * 1.5;
+        t.lights.forEach((l, i) => { l.material.emissiveIntensity = (Math.floor(this.clock * 3) + i) % 3 === 0 ? 3 : 0.4; });
+      }
     }
   }
 

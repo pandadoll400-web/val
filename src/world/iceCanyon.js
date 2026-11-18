@@ -4,7 +4,7 @@ import {
   FOG_COLOR, makeSky, makeEnvironment, createCliffGeometry, updateCliff, cliffMaterial,
   makeCrystalCluster, makeIceRock, makeSnow,
 } from './canyonParts.js';
-import { getTheme, makeTree, makeMushroom, makeBush, makeFlowers, makeHive, makeHiveBox, honeycombTexture, makePine, makePalm, makeReeds, makeCactus, makeThemeProp, floorDetailTexture } from './themes.js';
+import { getTheme, makeTree, makeMushroom, makeBush, makeFlowers, makeHive, makeHiveBox, honeycombTexture, makePine, makePalm, makeReeds, makeCactus, makeThemeProp, floorDetailTexture, makeXmasTree, makeGiftProp } from './themes.js';
 import { MAP_LAYOUTS } from './maps.js';
 
 const HALF_W = 34;   // playable half-width (x)
@@ -156,6 +156,7 @@ export class IceCanyonWorld {
     for (let i = 0; i < 26; i++) {
       const side = i % 2 ? 1 : -1;
       const cl = P === 'tree' ? makeTree(rng, 1.3 + rng() * 0.9) : P === 'flower' ? (i % 3 ? makeFlowers(rng, 1.4) : makeHiveBox(rng, 1.3))
+        : P === 'gift' ? (i % 3 ? makeXmasTree(rng, 1.3 + rng() * 0.5) : makeGiftProp(rng, 1.6))
         : P === 'reed' ? (i % 3 ? makePine(rng, 1.4 + rng() * 0.6, this.theme.snowy) : makeReeds(rng, 1.5)) : P === 'cactus' ? (i % 3 ? makeCactus(rng, 1.2 + rng() * 0.5) : makePalm(rng, 1.2))
         : makeCrystalCluster(rng, 1 + rng() * 1.6);
       cl.position.set(side * (this.halfW - 0.5 + rng() * 1.5), 0, -this.halfL + rng() * this.halfL * 2);
@@ -277,7 +278,7 @@ export class IceCanyonWorld {
     const kind = this.theme.pillar;
     if (kind !== 'ice') {
       // giant tree / honeycomb tower / pine / palm in the same footprint
-      const o = kind === 'tree' ? makeTree(this.rng, 2.2) : kind === 'hive' ? makeHive(this.rng, 1.05) : kind === 'pine' ? makePine(this.rng, 1.8, this.theme.snowy) : makePalm(this.rng, 1.4);
+      const o = kind === 'tree' ? makeTree(this.rng, 2.2) : kind === 'hive' ? makeHive(this.rng, 1.05) : kind === 'pine' ? makePine(this.rng, 1.8, this.theme.snowy) : kind === 'xmasTree' ? makeXmasTree(this.rng, 1.8) : makePalm(this.rng, 1.4);
       o.position.set(x, 0, z);
       this.scene.add(o);
       o.traverse((m) => { if (m.isMesh) { this.solids.push(m); this.cover.push(m); } });

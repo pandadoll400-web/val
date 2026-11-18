@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { save, persist } from '../save.js';
+import { save, persist, outfitFor, randomCharSkin } from '../save.js';
+import { CHAR_SKINS, getCharSkin } from '../data/charSkins.js';
 import { CHARACTERS, RARITY, getCharacter } from '../data/characters.js';
 import { WEAPONS, CATEGORIES, CATEGORY_ORDER, getWeapon } from '../data/weapons.js';
 import { makeSoldier } from '../game/soldier.js';
@@ -10,7 +11,7 @@ import { audio } from '../audio.js';
 import { currentUser } from '../net/auth.js';
 
 const isHack = () => (currentUser()?.nick || '').toLowerCase() === 'hack';
-const OUTFIT_NAMES = { xmas: '🎄 크리스마스' };
+const hasCharSkin = () => save.ownedOutfits.some((o) => getCharSkin(o) && getCharSkin(o).char !== 'bloom');
 
 const $ = (id) => document.getElementById(id);
 const PANELS = ['panel-mode', 'panel-chars', 'panel-weapons', 'panel-shop', 'panel-settings'];
@@ -107,11 +108,12 @@ export class MenuUI {
 
   refresh() {
     $('coin-count').textContent = save.coins.toLocaleString();
+    this.onRefresh?.();
     const c = getCharacter(save.character), lo = save.loadout;
     const wn = (id) => `<b style="color:${RARITY[WEAPONS[id].rarity].color}">${WEAPONS[id].name}</b>`;
     $('loadout-chip').innerHTML = `캐릭터 <b>${c.name}</b> <span style="color:${RARITY[c.rarity].color}">(${RARITY[c.rarity].name})</span>
       · 무기 ${wn(lo.primary)} / ${wn(lo.secondary)} / ${wn(lo.sidearm)}
-      <div class="ver">v1.7 · 빌드 ${__BUILD__}</div>`;
+      <div class="ver">v1.8 · 빌드 ${__BUILD__}</div>`;
   }
 
   /* ---------- characters ---------- */
@@ -135,6 +137,7 @@ export class MenuUI {
     const r = RARITY[c.rarity];
     const owned = save.owned.includes(c.id);
     const selected = save.character === c.id;
+    const mySkins = CHAR_SKINS.filter((k) => k.char === c.id && save.ownedOutfits.includes(k.id));
     $('char-detail').innerHTML = `
       <div class="d-name">${c.name}<span class="rbadge" style="background:${r.color}">${r.name}</span></div>
       <div class="d-title">${c.title}</div>
@@ -149,11 +152,11 @@ export class MenuUI {
         ${selected ? '선택됨' : owned ? '이 캐릭터 선택' : `구매하기 ◆ ${c.price.toLocaleString()}`}
       </button>
       ${owned ? '' : '<div class="hint">적 처치 1명당 ◆20, 승리 시 ◆300을 얻습니다.</div>'}
-      ${save.ownedOutfits.length ? `<div class="skin-row outfit-row"><span>의상</span>
-        <button class="skin-opt ${!save.outfit ? 'on' : ''}" data-o="">기본</button>
-        ${save.ownedOutfits.map((o) => `<button class="skin-opt ${o} ${save.outfit === o ? 'on' : ''}" data-o="${o}">${OUTFIT_NAMES[o] || o}</button>`).join('')}</div>` : ''}`;
+      ${mySkins.length ? `<div class="skin-row outfit-row"><span>스킨</span>
+        <button class="skin-opt ${!outfitFor(c.id) ? 'on' : ''}" data-o="">기본</button>
+        ${mySkins.map((k) => `<button class="skin-opt xmas ${outfitFor(c.id) === k.id ? 'on' : ''}" data-o="${k.id}">🎄 ${k.name}</button>`).join('')}</div>` : ''}`;
     $('char-detail').querySelectorAll('[data-o]').forEach((b) => (b.onclick = () => {
-      save.outfit = b.dataset.o || null;
+      if (b.dataset.o) save.outfits[c.id] = b.dataset.o; else delete save.outfits[c.id];
       persist();
       this.renderChars();
     }));
@@ -300,7 +303,7 @@ export class MenuUI {
   renderShop() {
     const list = $('shop-list');
     list.innerHTML = BUNDLES.filter((b) => !b.hackOnly || isHack()).map((b) => {
-      const owned = b.weapons.every((wid) => save.ownedSkins.includes(skinId(b.id, wid))) && (!b.outfit || save.ownedOutfits.includes(b.outfit));
+      const owned = b.weapons.every((wid) => save.ownedSkins.includes(skinId(b.id, wid))) && (!b.randomCharSkin || hasCharSkin());
       const free = !b.price;
       const r = RARITY[b.rarity];
       return `<section class="bundle ${b.id}">
@@ -310,8 +313,8 @@ export class MenuUI {
         <div class="b-weapons">
           ${b.weapons.map((wid) => `<button class="b-w" data-b="${b.id}" data-w="${wid}" title="눌러서 3D로 보기">
             <img src="${getWeaponIcon(wid, skinId(b.id, wid))}" alt=""><span>${WEAPONS[wid].name}</span></button>`).join('')}
-          ${b.outfit ? `<button class="b-w outfit" data-b="${b.id}" data-outfit="${b.outfit}" title="눌러서 3D로 보기">
-            <img src="${getPortrait(getCharacter(save.character), b.outfit)}" alt=""><span>캐릭터 의상</span></button>` : ''}
+          ${b.randomCharSkin ? `<button class="b-w outfit" data-b="${b.id}" data-outfit="xmas_rookie" title="예시: 산타 루키 · 눌러서 3D로 보기">
+            <img src="${getPortrait(getCharacter('rookie'), 'xmas_rookie')}" alt=""><span>🎁 랜덤 캐릭터 스킨 1개</span></button>` : ''}
         </div>
         <div class="b-desc">${b.desc}</div>
         <div class="b-fx">✦ 처치 이펙트: <b>${b.killFx}</b></div>
@@ -338,14 +341,15 @@ export class MenuUI {
       if (!save.ownedSkins.includes(sid)) save.ownedSkins.push(sid);
       if (!save.skins[wid] || b.price === 0) save.skins[wid] = sid; // auto-apply if the weapon had no skin
     }
-    if (b.outfit) {
-      if (!save.ownedOutfits.includes(b.outfit)) save.ownedOutfits.push(b.outfit);
-      save.outfit = b.outfit;
+    let got = null;
+    if (b.randomCharSkin && !hasCharSkin()) {
+      got = randomCharSkin();
+      if (got) { save.ownedOutfits.push(got.id); save.outfits[got.char] = got.id; }
     }
     persist();
     audio.init();
     audio.kill();
-    this.toast(b.outfit ? `${b.name} 획득! 의상은 캐릭터 탭, 스킨은 무기 탭에서 바꿀 수 있어요` : `${b.name} 번들 구매 완료! 무기 탭에서 스킨을 바꿀 수 있어요`);
+    this.toast(got ? `${b.name} 획득! 캐릭터 스킨: 🎄 ${got.name} (${getCharacter(got.char).name})` : `${b.name} 번들 구매 완료! 무기 탭에서 스킨을 바꿀 수 있어요`);
     this.refresh();
     this.renderShop();
   }
@@ -359,7 +363,7 @@ export class MenuUI {
     const slot = pop.querySelector('.preview-slot');
     slot.appendChild(this.preview.canvas);
     this.previewActive = true;
-    if (outfit) { this.setSubject('char'); this.setPreviewCharacter(getCharacter(save.character), outfit); }
+    if (outfit) { this.setSubject('char'); this.setPreviewCharacter(getCharacter(getCharSkin(outfit)?.char || save.character), outfit); }
     else { this.setSubject('weapon'); this.setPreviewWeapon(wid, skinId(bid, wid)); }
     this.resizePreview();
   }
@@ -485,7 +489,7 @@ export class MenuUI {
     if (kind === 'char') { p.cam.position.set(0, 1.45, 6.6); p.cam.lookAt(0, 1.38, 0); }
   }
 
-  setPreviewCharacter(c, outfit = save.outfit) {
+  setPreviewCharacter(c, outfit = outfitFor(c.id)) {
     const p = this.preview;
     if (p.charId === c.id + '|' + outfit) return;
     p.charId = c.id + '|' + outfit;

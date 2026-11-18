@@ -367,6 +367,28 @@ table.kda .kp small { display: block; font-size: 11px; color: rgba(255,255,255,.
 .swatch.wicon { width: 64px; }
 .swatch.wicon img { width: 60px; height: 30px; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0,0,0,.7)); }
 
+/* ===== christmas calendar ===== */
+.advent-btn { position: absolute; top: 64px; left: 20px; z-index: 12; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 800; color: #fff; background: linear-gradient(90deg, rgba(200,32,42,.85), rgba(31,138,58,.85)); border: 1px solid rgba(255,255,255,.35); cursor: pointer; }
+.advent-btn.ready { animation: advPulse 1.6s ease-in-out infinite; }
+@keyframes advPulse { 50% { box-shadow: 0 0 0 4px rgba(255,210,74,.35), 0 0 18px rgba(255,210,74,.6); } }
+.advent-pop { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(4,8,18,.6); }
+.advent-card { width: min(520px, 94vw); border-radius: 18px; padding: 16px; background: radial-gradient(ellipse at 50% 0%, #2a6a3a 0%, #0f2a1a 55%, #3a0a10 100%); border: 1px solid rgba(255,255,255,.25); box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.advent-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.advent-head b { font-size: 20px; } .advent-head small { color: rgba(255,255,255,.7); font-size: 12px; flex: 1; }
+.advent-head .x { background: none; border: 0; color: #fff; font-size: 18px; cursor: pointer; }
+.advent-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.adv { position: relative; aspect-ratio: 1; border-radius: 12px; border: 1px solid rgba(255,255,255,.2); background: rgba(0,0,0,.28); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: default; }
+.adv b { position: absolute; top: 4px; left: 7px; font-size: 12px; opacity: .8; }
+.adv i { font-style: normal; font-size: 20px; } .adv small { font-size: 10.5px; opacity: .85; }
+.adv.open { cursor: pointer; background: linear-gradient(135deg, #d81e2a, #a8141e); border-color: #ffd24a; box-shadow: 0 0 14px rgba(255,210,74,.55); animation: advPulse 1.6s ease-in-out infinite; }
+.adv.open:hover { transform: translateY(-2px); }
+.adv.got { background: rgba(31,138,58,.45); }
+.adv.missed { opacity: .4; }
+.adv.future { opacity: .7; }
+.adv.big.open, .adv.big.future { border-color: #ffd24a; }
+.advent-foot { margin-top: 10px; font-size: 11.5px; color: #ffe08a; text-align: center; }
+
 /* ===== shop ===== */
 .shop-btn { max-width: 362px; text-align: center; padding: 0; margin-top: 2px;
   background: linear-gradient(90deg, rgba(255,190,80,.18), rgba(14,22,40,.45)); border-color: rgba(255,200,110,.5); }

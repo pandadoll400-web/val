@@ -58,6 +58,7 @@ const decalMat = new THREE.MeshBasicMaterial({
 });
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3();
+const XMAS_COLS = ['#ff3a4a', '#3adf6a', '#ffd24a', '#ffffff', '#ff3a4a', '#3adf6a', '#ffd24a'];
 
 /** Visual effects: tracers, impacts, flashes, shells, explosions, lightning. */
 export class Effects {
@@ -65,11 +66,29 @@ export class Effects {
     this.game = game;
     this.scene = game.scene;
     this.items = [];     // { obj, life, max, update(dt,k) }
+    this.palette = null; // 'xmas' while a Christmas-skinned skill spawns effects
     this.decals = [];
 
     this.worldLight = new THREE.PointLight('#ffb35a', 0, 14, 1.6);
     this.scene.add(this.worldLight);
     this.worldLightT = 0;
+  }
+
+  /** Christmas skins recolour skill effects: every colour maps to red / green / gold / white */
+  col(c) {
+    if (this.palette !== 'xmas' || typeof c !== 'string') return c;
+    let h = 0;
+    for (let i = 0; i < c.length; i++) h = (h * 31 + c.charCodeAt(i)) >>> 0;
+    return XMAS_COLS[h % XMAS_COLS.length];
+  }
+
+  /** snowflakes + red / green / gold glitter around a Christmas-skinned skill cast */
+  xmasSparkle(pos) {
+    const p = pos.clone().setY(pos.y + 1.1);
+    this.burst(p, { count: 14, color: '#ffffff', speed: 3, size: 0.045, gravity: 1.5, life: 1.2 });
+    this.burst(p, { count: 8, color: '#ff3a4a', speed: 3.5, size: 0.04, gravity: 3, life: 1 });
+    this.burst(p, { count: 8, color: '#3adf6a', speed: 3.5, size: 0.04, gravity: 3, life: 1 });
+    this.burst(p, { count: 8, color: '#ffd24a', speed: 3.5, size: 0.04, gravity: 3, life: 1 });
   }
 
   add(obj, life, update, parent = this.scene) {
@@ -80,6 +99,7 @@ export class Effects {
 
   /* ---- bullets ---- */
   tracer(from, to, color = '#ffc35a', width = 0.018, speed = 260) {
+    color = this.col(color);
     const dist = from.distanceTo(to);
     if (dist < 0.3) return;
     const dir = _v.copy(to).sub(from).normalize().clone();
@@ -107,6 +127,7 @@ export class Effects {
   }
 
   burst(point, { count = 8, color = 'ice', speed = 4, size = 0.05, gravity = 12, life = 0.6, normal } = {}) {
+    if (!shardMats[color] || this.palette) color = this.col(color === 'ice' ? '#e6f7ff' : color === 'hit' ? '#ff8a3a' : color === 'wood' ? '#7a5636' : color);
     const mat = shardMats[color] || basicMat(color);
     for (let i = 0; i < count; i++) {
       const m = new THREE.Mesh(shardGeo, mat);
@@ -127,6 +148,7 @@ export class Effects {
   }
 
   puff(point, color = '#e8f6ff', size = 0.6, life = 0.5, opacity = 0.7) {
+    color = this.col(color);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, transparent: true, opacity, depthWrite: false }));
     sp.position.copy(point);
     sp.scale.setScalar(size * 0.4);
@@ -203,6 +225,7 @@ export class Effects {
 
   /* ---- skills ---- */
   explosion(pos, color = '#ff8a3a', radius = 4) {
+    color = this.col(color);
     const s = new THREE.Mesh(sphereGeo, basicMat(color, true, 0.8).clone());
     s.position.copy(pos);
     this.add(s, 0.45, (dt, k) => {
@@ -220,6 +243,7 @@ export class Effects {
   }
 
   ring(pos, color, radius, life = 0.5, y = 0.08) {
+    color = this.col(color);
     const r = new THREE.Mesh(ringGeo, basicMat(color, true, 0.9).clone());
     r.material.side = THREE.DoubleSide;
     r.position.copy(pos).setY(pos.y + y);
@@ -231,6 +255,7 @@ export class Effects {
   }
 
   lightning(from, to, color = '#8ff7ff', width = 0.03) {
+    color = this.col(color);
     const segs = Math.max(4, Math.floor(from.distanceTo(to) / 1.5));
     const pts = [from.clone()];
     for (let i = 1; i < segs; i++) {
@@ -257,7 +282,7 @@ export class Effects {
   /** Biker chain: a line of steel links shooting out from `from` to `to` */
   chain(from, to) {
     const d = from.distanceTo(to), n = Math.max(3, Math.floor(d / 0.32));
-    const mat = new THREE.MeshStandardMaterial({ color: '#b9c0c8', metalness: 1, roughness: 0.3 });
+    const mat = new THREE.MeshStandardMaterial({ color: this.palette ? '#ffd24a' : '#b9c0c8', metalness: 1, roughness: 0.3 });
     const geo = new THREE.TorusGeometry(0.09, 0.025, 6, 10);
     const dir = to.clone().sub(from).normalize();
     for (let i = 0; i <= n; i++) {
@@ -508,6 +533,7 @@ export class Effects {
   }
 
   flashLight(pos, color, intensity, time) {
+    color = this.col(color);
     this.worldLight.position.copy(pos).setY(1.5);
     this.worldLight.color.set(color);
     this.worldLight.intensity = intensity;
@@ -515,6 +541,7 @@ export class Effects {
   }
 
   glowSprite(color, size) {
+    color = this.col(color);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
     sp.scale.setScalar(size);
     return sp;

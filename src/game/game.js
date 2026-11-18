@@ -17,6 +17,7 @@ import { setZoneVisual } from '../world/maps.js';
 import { getTheme, randomMap } from '../world/themes.js';
 import { getPortrait } from '../menu/ui.js';
 import { currentUser } from '../net/auth.js';
+import { isXmasSkin } from '../data/charSkins.js';
 
 const $ = (id) => document.getElementById(id);
 export const ENEMY_COUNT = 7;
@@ -648,6 +649,7 @@ export class Game {
   }
 
   onNetEffect(v) {
+    if (!v?._wrapped) return this.withSenderPalette(v?.from, () => this.onNetEffect({ ...v, _wrapped: true }));
     if (!this.player.alive) return;
     if (v.kind === 'slow' || v.kind === 'stun') this.player.slowT = Math.max(this.player.slowT, v.dur || 1);
     else if (v.kind === 'glitch') this.player.applyGlitch(v.dur || 1);
@@ -686,8 +688,20 @@ export class Game {
 
   onNetScore(score) { this.score = score; }
 
+  /** run a network effect handler with the sender's skin palette (Christmas skins recolour skill effects) */
+  withSenderPalette(from, fn) {
+    const xmas = isXmasSkin(this.remotes[from]?.profile?.outfit);
+    const fx = this.effects, s = this.skills, o = fx.palette;
+    fx.palette = xmas ? 'xmas' : null; s.fxCtx = { xmas };
+    try { return fn(); } finally { fx.palette = o; s.fxCtx = null; }
+  }
+
   onNetFx(d) {
     if (!d) return;
+    return this.withSenderPalette(d.from, () => this.handleNetFx(d));
+  }
+
+  handleNetFx(d) {
     const V = (o) => new THREE.Vector3(o.x, o.y, o.z);
     const s = this.skills;
     if (d.k === 'wall') s.buildIceWall(V(d), d.ax, true);

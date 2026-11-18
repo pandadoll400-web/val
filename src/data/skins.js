@@ -94,9 +94,9 @@ export const BUNDLES = [
     killFx: '글리치 홀로그램', weapons: ['smg', 'bow', 'rifle'],
   },
   {
-    id: 'xmas', name: '🎄 홀리 나이트', rarity: 'infinity', price: 0, hackOnly: true, outfit: 'xmas',
+    id: 'xmas', name: '🎄 홀리 나이트', rarity: 'infinity', price: 0, hackOnly: true, randomCharSkin: true,
     tagline: '눈 내리는 협곡의 크리스마스 이브',
-    desc: '산타 의상(빨간 코트·흰 털·산타 모자·목도리)과 사탕지팡이 총열, 리본, 장식 방울이 달린 무기 4종. 처치하면 그 자리에서 선물 상자가 터지며 눈이 내립니다.',
+    desc: '사탕지팡이 총열·리본·장식 방울이 달린 무기 4종과, 캐릭터 크리스마스 스킨 중 랜덤 1개(산타·루돌프·눈사람·엘프…). 처치하면 그 자리에서 선물 상자가 터지며 눈이 내립니다.',
     killFx: '선물 상자 눈보라', weapons: ['rifle', 'pistol', 'knife', 'flamer'],
   },
 ];

@@ -142,7 +142,7 @@ export const CATEGORIES = [
   { id: "sidearm", name: "보조", sub: "보조" },
 ];
 export const CATEGORY_ORDER = {
-  primary: ["smg", "rifle", "shotgun", "lmg"],
+  primary: ["smg", "rifle", "shotgun", "lmg", "flamer"],
   secondary: ["burst", "dmr", "sniper", "bow", "dualmini", "katana"],
   sidearm: ["pistol", "knife", "grenade", "smoke"],
 };

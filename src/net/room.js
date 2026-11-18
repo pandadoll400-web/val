@@ -2,7 +2,7 @@ import {
   getDb, ref, set, get, update, remove, push, onValue, off, onDisconnect, runTransaction,
   myUid, serverNow, watchServerOffset, isPermissionError, serverTimestamp,
 } from './firebase.js';
-import { save } from '../save.js';
+import { save, outfitFor } from '../save.js';
 import { CHARACTERS } from '../data/characters.js';
 import { randomMap, THEME_ORDER } from '../world/themes.js';
 
@@ -21,7 +21,7 @@ export const CAPTURE_TIME = 20, DOM_TIME = 360;
 export const ROUND_TIME = 90, OVERTIME = 30; // seconds
 const MAX_ROOM = 4;
 /** online version: everyone in a room must run the same build of the maps / rules (bump when they change) */
-export const NET_VER = 8;
+export const NET_VER = 9;
 const OLD_VER = '게임 버전이 다릅니다 — 둘 다 새로고침(Ctrl+F5)해서 최신 버전으로 맞춘 뒤 다시 들어오세요';
 const BOT_NAMES = ['AI 블리자드', 'AI 툰드라', 'AI 글래셔', 'AI 폴라리스', 'AI 아발란체', 'AI 서리발톱', 'AI 눈보라', 'AI 북풍'];
 
@@ -45,7 +45,7 @@ export function roomSlots(players, bots, mode, teams = {}) {
 export function myProfile() {
   const skins = {};
   for (const id of Object.values(save.loadout)) if (save.skins?.[id] && save.ownedSkins.includes(save.skins[id])) skins[id] = save.skins[id];
-  return { name: save.name, char: save.character, outfit: save.outfit || null, loadout: { ...save.loadout }, skins, joined: Date.now(), v: NET_VER };
+  return { name: save.name, char: save.character, outfit: outfitFor(save.character), loadout: { ...save.loadout }, skins, joined: Date.now(), v: NET_VER };
 }
 
 export function friendlyError(e) {
@@ -154,7 +154,7 @@ export class RoomClient {
   /** host: pick the map ('' = random) */
   async setMap(map) {
     if (!this.isHost || this.meta?.state !== 'lobby') return;
-    await update(this.r('meta'), { map: THEME_ORDER.includes(map) ? map : null });
+    await update(this.r('meta'), { map: THEME_ORDER.includes(map) || map === 'xmas' ? map : null });
   }
 
   /** host: put an AI player into an empty slot */
@@ -273,7 +273,7 @@ export async function createMatch(mode, parties, teams, bots = {}, pickMap = '')
   for (const [id, b] of Object.entries(bots)) players[id] = { ...b, team: teams[id], slot: slot[teams[id]]++, party: parties[0]?.code || '' };
   const startAt = serverNow() + 4000;
   // domination is always at the campsite; otherwise the host's pick, or a random map
-  const map = mode === 'dom' ? 'camp' : THEME_ORDER.includes(pickMap) ? pickMap : randomMap();
+  const map = mode === 'dom' ? 'camp' : THEME_ORDER.includes(pickMap) || pickMap === 'xmas' ? pickMap : randomMap();
   const score = {};
   for (const p of Object.values(players)) score[p.team] = 0;
   await set(mref, {

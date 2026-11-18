@@ -3,7 +3,9 @@ import { WEAPONS } from '../data/weapons.js';
 import { buildGun, makeArm, makeLegs, VM } from './gunModels.js';
 import { damp, clamp } from '../util/noise.js';
 import { audio } from '../audio.js';
-import { save } from '../save.js';
+import { save, outfitFor } from '../save.js';
+import { getCharSkin } from '../data/charSkins.js';
+import { starGeo } from './soldier.js';
 
 const smooth = (t) => t * t * (3 - 2 * t);
 const lerpArr = (a, b, u) => (typeof a === 'number' ? a + (b - a) * u : a.map((v, i) => v + (b[i] - v) * u));
@@ -42,6 +44,24 @@ export function makeSeed(fx, color = '#9dff5a') {
   const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 6), new THREE.MeshBasicMaterial({ color }));
   leaf.scale.set(1.6, 0.4, 0.8); leaf.position.set(0.008, 0.026, 0); leaf.rotation.z = -0.5;
   g.add(shell, sprout, leaf, fx.glowSprite(color, 0.09));
+  return g;
+}
+
+/** Christmas skin: a gold star (right hand) and a red ornament (left hand) replace the seeds */
+export function makeXmasStar(fx) {
+  const g = new THREE.Group();
+  const star = new THREE.Mesh(starGeo(0.02, 0.006), new THREE.MeshStandardMaterial({ color: '#ffd24a', emissive: '#ffb000', emissiveIntensity: 1.4, metalness: 0.6, roughness: 0.3 }));
+  g.add(star, fx.glowSprite('#ffd24a', 0.1));
+  return g;
+}
+export function makeXmasOrnament(fx) {
+  const g = new THREE.Group();
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.016, 14, 10), new THREE.MeshStandardMaterial({ color: '#e0182a', metalness: 0.8, roughness: 0.15 }));
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.006, 8), new THREE.MeshStandardMaterial({ color: '#ffd24a', metalness: 0.9, roughness: 0.2 }));
+  cap.position.y = 0.018;
+  const loop = new THREE.Mesh(new THREE.TorusGeometry(0.004, 0.0012, 4, 10), cap.material);
+  loop.position.y = 0.024;
+  g.add(ball, cap, loop, fx.glowSprite('#ff5a6a', 0.07));
   return g;
 }
 
@@ -138,7 +158,8 @@ export class WeaponSystem {
     this.vmFlash = new THREE.PointLight('#ffb35a', 0, 2.5, 1.5);
     this.vmScene.add(this.vmFlash);
 
-    this.sleeve = new THREE.MeshStandardMaterial({ color: save.outfit === 'xmas' ? '#c8202a' : game.character.color, roughness: 0.8 });
+    this.charSkin = getCharSkin(outfitFor(game.character.id));
+    this.sleeve = new THREE.MeshStandardMaterial({ color: this.charSkin?.sleeve || game.character.color, roughness: 0.8 });
     this.root = new THREE.Group();
     this.pivot = new THREE.Group();
     this.root.add(this.pivot);
@@ -147,8 +168,8 @@ export class WeaponSystem {
     this.rightArm = makeArm(this.sleeve, 1);
     this.leftArm = makeArm(this.sleeve, -1);
     this.pivot.add(this.rightArm, this.leftArm);
-    if (save.outfit === 'xmas') {
-      // santa coat: white fur cuffs
+    if (this.charSkin) {
+      // christmas skin: white fur cuffs
       const fur = new THREE.MeshStandardMaterial({ color: '#f7f7f2', roughness: 0.95 });
       for (const [arm, side] of [[this.rightArm, 1], [this.leftArm, -1]]) {
         const c = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.096, 0.07), fur);
@@ -253,8 +274,8 @@ export class WeaponSystem {
     this.castArmL.add(this.noteL);
     this.noteR.visible = this.noteL.visible = false;
     // Bloom seeds
-    this.seedR = makeSeed(game.effects, '#9dff5a');
-    this.seedL = makeSeed(game.effects, '#ff8fd0');
+    this.seedR = this.charSkin ? makeXmasStar(game.effects) : makeSeed(game.effects, '#9dff5a');
+    this.seedL = this.charSkin ? makeXmasOrnament(game.effects) : makeSeed(game.effects, '#ff8fd0');
     this.seedR.position.set(0, 0.07, -0.03);
     this.seedL.position.set(0, 0.07, -0.03);
     this.castArm.add(this.seedR);
@@ -428,7 +449,15 @@ export class WeaponSystem {
       this.castArm.visible = this.castArmL.visible = vis;
       this.castArm.scale.setScalar(VM_SCALE); this.castArmL.scale.setScalar(VM_SCALE);
       this.orb.visible = false; this.orbLight.intensity = 0.6;
-      const spread = kf([[0, 0.17], [0.35, 0.12], [0.55, 0.1], [0.7, 0.2], [1, 0.22]], k);
+      // christmas skin: the star and the ornament are brought together first, then tossed
+      const spread = this.charSkin ? kf([[0, 0.17], [0.3, 0.08], [0.5, 0.025], [0.58, 0.025], [0.7, 0.2], [1, 0.22]], k) : kf([[0, 0.17], [0.35, 0.12], [0.55, 0.1], [0.7, 0.2], [1, 0.22]], k);
+      if (this.charSkin && !e.merged && k >= 0.5) {
+        e.merged = true;
+        const at = this.orbWorld(this.seedR);
+        this.game.effects.burst(at, { count: 16, color: '#ffd24a', speed: 2, size: 0.02, gravity: 0, life: 0.6 });
+        this.game.effects.burst(at, { count: 8, color: '#ff3a4a', speed: 2, size: 0.02, gravity: 0, life: 0.6 });
+        audio.click?.(3200, 0.25);
+      }
       const fwd = kf([[0, -0.46], [0.5, -0.46], [0.65, -0.58], [1, -0.5]], k);
       const y = -0.45 + 0.27 * c - bob;
       this.castArm.position.set(spread, y, fwd);

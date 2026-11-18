@@ -1,5 +1,6 @@
 import { WEAPONS, DEFAULT_LOADOUT } from './data/weapons.js';
 import { CHARACTERS } from './data/characters.js';
+import { CHAR_SKINS, getCharSkin } from './data/charSkins.js';
 
 const KEY = 'frostcanyon.save.v1';
 const DEFAULT = {
@@ -12,7 +13,7 @@ const DEFAULT = {
   fov: 75,
   name: '',
   ownedOutfits: [],
-  outfit: null,
+  outfits: {},
 };
 
 function load() {
@@ -55,9 +56,28 @@ function normalize(save) {
   if (!save.skins || typeof save.skins !== 'object') save.skins = {};
   // bundle character outfits
   if (!Array.isArray(save.ownedOutfits)) save.ownedOutfits = [];
-  if (save.outfit && !save.ownedOutfits.includes(save.outfit)) save.outfit = null;
+  // v1.7 had one generic 'xmas' outfit: swap it for a random character skin
+  if (save.ownedOutfits.includes('xmas')) {
+    save.ownedOutfits = save.ownedOutfits.filter((o) => o !== 'xmas');
+    const pick = randomCharSkin(save);
+    if (pick) save.ownedOutfits.push(pick.id);
+  }
+  save.ownedOutfits = save.ownedOutfits.filter((o) => getCharSkin(o));
+  delete save.outfit;
+  if (!save.outfits || typeof save.outfits !== 'object') save.outfits = {};
+  for (const [c, o] of Object.entries(save.outfits)) if (!save.ownedOutfits.includes(o) || getCharSkin(o)?.char !== c) delete save.outfits[c];
+  if (!save.advent || typeof save.advent !== 'object') save.advent = { y: 2026, got: {} };
   return save;
 }
+
+/** a character skin this save does not own yet (Bloom's comes from the Christmas calendar only) */
+export function randomCharSkin(s = save) {
+  const left = CHAR_SKINS.filter((k) => k.char !== 'bloom' && !s.ownedOutfits.includes(k.id));
+  return left.length ? left[Math.floor(Math.random() * left.length)] : null;
+}
+
+/** the skin a character wears (null = default look) */
+export const outfitFor = (charId) => save.outfits?.[charId] || null;
 
 export const save = normalize(load());
 

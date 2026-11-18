@@ -11,6 +11,7 @@ import { audio } from './audio.js';
 import { save } from './save.js';
 import { THEMES } from './world/themes.js';
 import { IS_TOUCH } from './game/touch.js';
+import { AdventUI } from './menu/advent.js';
 
 const canvas = document.getElementById('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -51,6 +52,8 @@ const ui = new MenuUI({ onPlay: (mode) => startGame(mode) });
 window.__ui = ui; // debugging handle
 const account = new AccountUI({ ui });
 window.__account = account;
+const advent = new AdventUI({ ui });
+window.__advent = advent;
 
 // online: the room lobby hands us a match id → load it and play
 const room = new RoomUI({

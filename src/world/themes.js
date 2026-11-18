@@ -84,6 +84,20 @@ export const THEMES = {
     prop: 'cactus', pillar: 'palm', surface: 'sand',
   },
 };
+// Christmas village: hack-only room map (never in THEME_ORDER / randomMap); uses the ice layout
+THEMES.xmas = {
+  id: 'xmas', name: '크리스마스 마을', en: 'CHRISTMAS VILLAGE',
+  lead: '함박눈이 내리는 크리스마스 이브의 마을. 반짝이는 트리 사이로 총성이 울린다.<br />마을에 숨어든 적 7명을 모두 처치하라.',
+  fog: '#33405e', fogNear: 50, fogFar: 300,
+  sky: { horizon: '#5a6a9a', warm: '#ff9a7a', mid: '#2a3462', top: '#060a1e', aurora: 0.45, stars: 1 },
+  hemi: ['#cfdcff', '#2a3048', 1.05], sun: ['#ffe2c8', 1.8],
+  cliff: ['#3a4a6a', '#b8c8e0', '#f6faff'], cliffRough: 0.55,
+  floor: ['#dfe9f4', '#ffffff'], bank: ['#dfe9f4', '#ffffff'], river: '#5a8ab8', riverRough: 0.05,
+  block: { color: '#b02028', emissive: '#3a0008', emissiveIntensity: 0.25, roughness: 0.6, opacity: 1 },
+  rock: '#c8d4e2', crate: ['#c0161f', '#ffd24a'], wall: '#a8202a', roof: '#ffffff',
+  particles: { color: '#ffffff', size: 0.2, fall: 1.0, drift: 0.5, count: 2600 },
+  prop: 'gift', pillar: 'xmasTree', surface: 'snow', snowy: true,
+};
 THEMES.ice.surface = 'snow'; THEMES.ice.wall = '#e8f4ff'; THEMES.ice.roof = '#cfe6f7';
 THEMES.forest.surface = 'grass'; THEMES.forest.wall = '#6b4a2e'; THEMES.forest.roof = '#3c2a1c';
 THEMES.honey.surface = 'grass'; THEMES.honey.wall = '#c98a3a'; THEMES.honey.roof = '#7a4a1a';
@@ -326,6 +340,76 @@ export function makePalm(rng, scale = 1) {
   return g;
 }
 
+/** decorated Christmas tree: snowy pine + blinking light bulbs, ornaments and a star (scale 1 ≈ 8 m) */
+export function makeXmasTree(rng, scale = 1) {
+  const g = makePine(rng, scale, true);
+  const cols = ['#ff3a4a', '#ffd24a', '#3a8aff', '#3adf6a', '#ff8fd0'];
+  for (let i = 0; i < 26; i++) {
+    const lvl = i % 5, r = (1.15 - lvl * 0.2) * scale * 0.9, a = i * 2.39;
+    const y = 2.4 * scale * 0.6 + lvl * 0.95 * scale + 0.2 * scale;
+    const c = cols[i % cols.length];
+    const m = new THREE.Mesh(new THREE.SphereGeometry((i % 2 ? 0.09 : 0.13) * scale, 8, 6),
+      i % 2 ? mat('bulb' + c, { color: c, emissive: c, emissiveIntensity: 2.2 }) : mat('orn' + c, { color: c, metalness: 0.8, roughness: 0.15 }));
+    m.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+    g.add(m);
+  }
+  const s = new THREE.Shape();
+  for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2 + Math.PI / 2, rr = (i % 2 ? 0.16 : 0.36) * scale; if (i) s.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); else s.moveTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+  const star = new THREE.Mesh(new THREE.ExtrudeGeometry(s, { depth: 0.1 * scale, bevelEnabled: false }), mat('xstar', { color: '#ffd24a', emissive: '#ffb000', emissiveIntensity: 1.8, metalness: 0.5, roughness: 0.3 }));
+  star.position.y = 2.4 * scale * 0.6 + 5 * 0.95 * scale + 0.6 * scale;
+  g.add(star);
+  return g;
+}
+
+/** presents, candy canes and a little snowman */
+export function makeGiftProp(rng, scale = 1) {
+  const g = new THREE.Group();
+  const pick = rng();
+  if (pick < 0.5) {
+    const cols = ['#d0202a', '#1f8a3a', '#2a6ad8', '#ffd24a', '#8a3ad8'];
+    for (let i = 0; i < 3; i++) {
+      const w = (0.35 + rng() * 0.3) * scale, h = (0.3 + rng() * 0.3) * scale;
+      const c = cols[Math.floor(rng() * cols.length)];
+      const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), mat('gift' + c, { color: c, roughness: 0.5 }));
+      b.position.set((i - 1) * 0.45 * scale, h / 2, (rng() - 0.5) * 0.4 * scale);
+      b.rotation.y = rng();
+      const rib = mat('giftRib', { color: '#ffd24a', metalness: 0.7, roughness: 0.3 });
+      b.add(new THREE.Mesh(new THREE.BoxGeometry(w * 1.02, h * 1.02, w * 0.16), rib), new THREE.Mesh(new THREE.BoxGeometry(w * 0.16, h * 1.02, w * 1.02), rib));
+      b.castShadow = true;
+      g.add(b);
+    }
+  } else if (pick < 0.75) {
+    const red = mat('caneR', { color: '#d81e2a', roughness: 0.35 }), white = mat('caneW', { color: '#ffffff', roughness: 0.35 });
+    for (let i = 0; i < 2; i++) {
+      const h = 1.1 * scale;
+      for (let k = 0; k < 8; k++) {
+        const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * scale, 0.05 * scale, h / 8, 8), k % 2 ? red : white);
+        seg.position.set(i * 0.5 * scale, (k + 0.5) * h / 8, 0);
+        g.add(seg);
+      }
+      const hook = new THREE.Mesh(new THREE.TorusGeometry(0.14 * scale, 0.05 * scale, 8, 12, Math.PI), red);
+      hook.position.set(i * 0.5 * scale - 0.14 * scale, h, 0);
+      g.add(hook);
+    }
+  } else {
+    const snow = mat('snowman', { color: '#f6faff', roughness: 0.8 }), coal = mat('coal', { color: '#141414' });
+    for (const [r, y] of [[0.45, 0.4], [0.32, 1.05], [0.22, 1.5]]) {
+      const b = new THREE.Mesh(new THREE.SphereGeometry(r * scale, 12, 10), snow);
+      b.position.y = y * scale; b.castShadow = true;
+      g.add(b);
+    }
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.05 * scale, 0.25 * scale, 8), mat('carrot', { color: '#ff8a1a' }));
+    nose.rotation.x = Math.PI / 2; nose.position.set(0, 1.5 * scale, 0.3 * scale);
+    const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.16 * scale, 0.16 * scale, 0.3 * scale, 12), coal);
+    hat.position.y = 1.82 * scale;
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.26 * scale, 0.26 * scale, 0.03 * scale, 12), coal);
+    brim.position.y = 1.68 * scale;
+    g.add(nose, hat, brim);
+    for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.03 * scale, 6, 4), coal); e.position.set(sx * 0.08 * scale, 1.58 * scale, 0.19 * scale); g.add(e); }
+  }
+  return g;
+}
+
 /** small decorative prop for a theme (no collision) */
 export function makeThemeProp(theme, rng, s = 1) {
   switch (theme.prop) {
@@ -333,6 +417,7 @@ export function makeThemeProp(theme, rng, s = 1) {
     case 'flower': return rng() < 0.75 ? makeFlowers(rng, s) : makeHiveBox(rng, s * 0.8);
     case 'reed': return rng() < 0.6 ? makeReeds(rng, s) : makeBush(rng, s * 0.6);
     case 'cactus': return rng() < 0.7 ? makeCactus(rng, s * 0.7) : makeBush(rng, s * 0.5);
+    case 'gift': return makeGiftProp(rng, s);
     default: return null;
   }
 }
@@ -356,7 +441,7 @@ export function floorDetailTexture(id) {
       g.stroke();
     }
     for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(120,80,40,${rnd() * 0.25})`; g.fillRect(rnd() * S, rnd() * S, 1.5, 1.5); }
-  } else if (id === 'ice' || id === 'lake') {
+  } else if (id === 'ice' || id === 'lake' || id === 'xmas') {
     for (let i = 0; i < 1400; i++) { const v = 200 + rnd() * 55; g.fillStyle = `rgba(${v - 30},${v - 10},${v},${0.25 + rnd() * 0.3})`; g.fillRect(rnd() * S, rnd() * S, 2, 2); }
     for (let i = 0; i < 14; i++) { g.strokeStyle = 'rgba(120,170,210,0.25)'; g.lineWidth = 1; g.beginPath(); let x = rnd() * S, y = rnd() * S; g.moveTo(x, y); for (let k = 0; k < 5; k++) { x += (rnd() - 0.5) * 40; y += (rnd() - 0.5) * 40; g.lineTo(x, y); } g.stroke(); }
   } else {
