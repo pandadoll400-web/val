@@ -3,6 +3,7 @@ import { audio } from '../audio.js';
 import { makeNote } from './weapons.js';
 import { CHARACTERS, getCharacter } from '../data/characters.js';
 import { isXmasSkin } from '../data/charSkins.js';
+import { track } from '../menu/missions.js';
 import { starGeo } from './soldier.js';
 
 const iceWallMat = new THREE.MeshStandardMaterial({
@@ -147,6 +148,7 @@ export class SkillSystem {
     if (used !== false) {
       (this.stolen && this.stolen.char === ac ? this.stolen.cd : this.cd)[key] = def.cd;
       game.hud.skillFlash(key);
+      track('skills');
       if (this.myXmas) game.effects.xmasSparkle(this.p.position.clone().addScaledVector(this.flatForward(), 1.8).setY(this.p.position.y - 0.6));
     }
   }

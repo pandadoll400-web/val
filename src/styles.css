@@ -389,6 +389,43 @@ table.kda .kp small { display: block; font-size: 11px; color: rgba(255,255,255,.
 .adv.big.open, .adv.big.future { border-color: #ffd24a; }
 .advent-foot { margin-top: 10px; font-size: 11.5px; color: #ffe08a; text-align: center; }
 
+.missions-btn { position: absolute; top: 64px; left: 20px; z-index: 12; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 999px;
+  font-size: 12px; font-weight: 800; color: #fff; background: rgba(14,22,40,.75); border: 1px solid rgba(255,255,255,.3); cursor: pointer; }
+.missions-btn.low { top: 98px; }
+.missions-btn.ready { background: linear-gradient(90deg, #ff9a3a, #ffcf4a); color: #1a1206; animation: advPulse 1.6s ease-in-out infinite; }
+.missions-card { background: linear-gradient(160deg, #13203a, #0b1426); }
+.missions-list { display: flex; flex-direction: column; gap: 10px; }
+.mission { padding: 12px; border-radius: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.14); }
+.mission.done { border-color: #ffcf4a; box-shadow: 0 0 12px rgba(255,207,74,.35); }
+.mission.claimed { opacity: .55; }
+.m-top { display: flex; justify-content: space-between; font-size: 14px; }
+.m-rew { color: #9fe7ff; font-weight: 900; }
+.m-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); margin: 8px 0 6px; overflow: hidden; }
+.m-bar i { display: block; height: 100%; background: linear-gradient(90deg, #3fd8ff, #7a6bff); }
+.mission.done .m-bar i { background: linear-gradient(90deg, #ffcf4a, #ff9a3a); }
+.m-foot { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: rgba(255,255,255,.7); }
+.m-foot .btn { max-width: 110px; margin: 0; }
+
+/* ===== chat ===== */
+.room-chat { position: absolute; left: 16px; top: 16px; z-index: 6; width: min(260px, 26vw); display: flex; flex-direction: column; gap: 6px;
+  padding: 10px; border-radius: 14px; background: rgba(8,14,28,.72); border: 1px solid rgba(255,255,255,.16); }
+.rc-log { height: 110px; overflow-y: auto; font-size: 12.5px; line-height: 1.5; color: #e8f0ff; }
+.rc-log b, .chat-log b { color: #ffb36b; margin-right: 4px; } .rc-log b.me, .chat-log b.me { color: #7fd8ff; }
+.rc-quick { display: flex; flex-wrap: wrap; gap: 4px; }
+.rc-quick button, .qc-list button { padding: 4px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; color: #fff; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); cursor: pointer; }
+.rc-row { display: flex; gap: 6px; }
+.rc-row input, .chat-input input { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.35); color: #fff; font-size: 13px; }
+.rc-row button { padding: 0 12px; border-radius: 10px; border: 0; background: #ff8a3a; color: #fff; font-weight: 800; cursor: pointer; }
+.chat-log { position: absolute; left: 20px; bottom: 210px; width: min(360px, 60vw); font-size: 13px; line-height: 1.55; color: #fff; text-shadow: 0 1px 3px #000; pointer-events: none; }
+.chat-log div { transition: opacity .6s; } .chat-log div.old { opacity: 0; }
+.chat-input { position: absolute; left: 20px; bottom: 170px; width: min(360px, 70vw); display: flex; gap: 6px; z-index: 30; }
+.qc-list { position: absolute; left: 20px; bottom: 210px; display: flex; flex-direction: column; gap: 4px; z-index: 30; padding: 8px; border-radius: 12px; background: rgba(8,14,28,.8); }
+.qc-list button { text-align: left; font-size: 13px; }
+.chat-btn { position: absolute; z-index: 25; left: 14px; top: 120px; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); background: rgba(8,14,28,.6); font-size: 20px; pointer-events: auto; }
+.game-chat .qc-list, .game-chat .chat-input { pointer-events: auto; }
+
+@media (max-width: 900px) { .room-chat { top: auto; bottom: 8px; left: 8px; width: min(240px, 40vw); padding: 6px; } .rc-log { height: 54px; } .rc-quick button { font-size: 10.5px; padding: 3px 6px; } }
+
 /* ===== shop ===== */
 .shop-btn { max-width: 362px; text-align: center; padding: 0; margin-top: 2px;
   background: linear-gradient(90deg, rgba(255,190,80,.18), rgba(14,22,40,.45)); border-color: rgba(255,200,110,.5); }

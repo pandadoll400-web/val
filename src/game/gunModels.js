@@ -916,7 +916,42 @@ function flamer() {
   };
 }
 
-export const GUN_BUILDERS = { pistol, knife, smg, shotgun, rifle, bow, dmr, sniper, lmg, burst, grenade, smoke, dualmini, katana, flamer };
+/* ======================= RAILGUN ======================= */
+function railgun() {
+  const g = new THREE.Group();
+  const coilMat = new THREE.MeshStandardMaterial({ color: '#5ff7ff', emissive: '#3fd8ff', emissiveIntensity: 0.4, metalness: 0.4, roughness: 0.3 });
+  // receiver + stock
+  prof(g, [[-0.07, -0.01], [0.17, -0.01], [0.17, 0.062], [0.15, 0.074], [-0.06, 0.074], [-0.07, 0.06]], 0.054, VM.metal, 0.005);
+  prof(g, [[0.17, 0.0], [0.33, 0.01], [0.34, 0.065], [0.17, 0.066]], 0.044, VM.poly, 0.004);
+  prof(g, [[0.33, -0.04], [0.35, -0.04], [0.35, 0.075], [0.33, 0.075]], 0.05, VM.rubber, 0.004);
+  // twin rails (top / bottom) with the coil rings between them
+  for (const y of [0.068, 0.006]) part(g, B(0.016, 0.012, 0.5), VM.steel, 0, y, -0.32);
+  for (const sx of [-1, 1]) part(g, B(0.006, 0.07, 0.46), VM.metal2, sx * 0.022, 0.037, -0.32);
+  for (let i = 0; i < 5; i++) part(g, new THREE.TorusGeometry(0.036, 0.008, 8, 18), coilMat, 0, 0.037, -0.14 - i * 0.085);
+  part(g, C(0.006, 0.5), coilMat, 0, 0.037, -0.32);                                                 // energy core
+  part(g, CT(0.03, 0.026, 0.04), VM.metal, 0, 0.037, -0.585);
+  // battery magazine
+  const mag = new THREE.Group();
+  mag.position.set(0, -0.02, -0.06);
+  prof(mag, [[-0.03, 0], [0.03, 0], [0.032, -0.09], [-0.028, -0.09]], 0.034, VM.metal2, 0.003);
+  part(mag, B(0.036, 0.012, 0.04), coilMat, 0, -0.05, -0.002);
+  g.add(mag);
+  // grips + scope
+  prof(g, [[-0.004, -0.005], [0.04, -0.005], [0.024, -0.1], [-0.016, -0.102], [-0.012, -0.03]], 0.034, VM.poly, 0.004);
+  part(g, CT(0.012, 0.014, 0.08).rotateX(-Math.PI / 2), VM.poly, 0, -0.025, -0.24);
+  part(g, C(0.018, 0.16), VM.metal, 0, 0.118, -0.02);
+  part(g, C(0.016, 0.004), VM.lens, 0, 0.118, -0.101);
+  for (const z of [0.03, -0.07]) part(g, B(0.012, 0.03, 0.012), VM.metal, 0, 0.09, z);
+  return {
+    group: g, kind: 'mag', mag, coilMat,
+    muzzle: point(g, 0, 0.037, -0.61), eject: point(g, 0.03, 0.04, -0.04),
+    sightY: 0.118, hip: new THREE.Vector3(0.18, -0.2, -0.4), adsZ: -0.14,
+    grip: new THREE.Vector3(0, -0.045, 0.012), leftRest: new THREE.Vector3(0, -0.06, -0.24),
+    flashScale: 0.6,
+  };
+}
+
+export const GUN_BUILDERS = { pistol, knife, smg, shotgun, rifle, bow, dmr, sniper, lmg, burst, grenade, smoke, dualmini, katana, flamer, railgun };
 
 // which skin slot each shared viewmodel material maps to
 const SKIN_SLOT = new Map([

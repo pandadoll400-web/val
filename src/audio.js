@@ -57,6 +57,7 @@ class Sfx {
     if (!this.ok) return;
     const t = this.now;
     const v = 1 / (1 + dist * 0.06);
+    if (kind === 'railgun') { this._noise(t, 0.25, { type: 'highpass', freq: 2500, vol: 0.5 * v }); this._tone(t, 0.35, { type: 'sawtooth', from: 1800, to: 120, vol: 0.35 * v }); this._tone(t, 0.2, { from: 120, to: 40, vol: 0.5 * v }); return; }
     if (kind === 'flamer') { this._noise(t, 0.16, { type: 'bandpass', freq: 700, q: 0.7, vol: 0.32 * v, sweepTo: 1100, attack: 0.02 }); return; }
     const P = {
       pistol:  { lp: 4200, dur: 0.14, thump: 0.5, vol: 0.55 },
@@ -71,6 +72,8 @@ class Sfx {
     this._tone(t, 0.12, { from: 140, to: 40, vol: P.thump * 0.6 * v });
     if (kind === 'sniper') this._noise(t + 0.08, 0.9, { freq: 900, vol: 0.18 * v, sweepTo: 200 });
   }
+
+  railCharge() { if (this.ok) this._tone(this.now, 0.7, { type: 'sine', from: 300, to: 1600, vol: 0.18 }); }
 
   click(freq = 2600, vol = 0.25, delay = 0) {
     if (!this.ok) return;

@@ -113,7 +113,7 @@ export class MenuUI {
     const wn = (id) => `<b style="color:${RARITY[WEAPONS[id].rarity].color}">${WEAPONS[id].name}</b>`;
     $('loadout-chip').innerHTML = `캐릭터 <b>${c.name}</b> <span style="color:${RARITY[c.rarity].color}">(${RARITY[c.rarity].name})</span>
       · 무기 ${wn(lo.primary)} / ${wn(lo.secondary)} / ${wn(lo.sidearm)}
-      <div class="ver">v1.8.1 · 빌드 ${__BUILD__}</div>`;
+      <div class="ver">v1.9 · 빌드 ${__BUILD__}</div>`;
   }
 
   /* ---------- characters ---------- */
@@ -214,6 +214,7 @@ export class MenuUI {
     });
     if (WEAPONS[this.viewWeapon]?.cat !== this.viewCat) this.viewWeapon = save.loadout[this.viewCat];
     for (const id of CATEGORY_ORDER[this.viewCat]) {
+      if (WEAPONS[id].hackOnly && !isHack()) continue;
       const w = WEAPONS[id];
       const r = RARITY[w.rarity];
       const owned = save.ownedWeapons.includes(id);

@@ -14,6 +14,7 @@ const DEFAULT = {
   name: '',
   ownedOutfits: [],
   outfits: {},
+  daily: null,
 };
 
 function load() {

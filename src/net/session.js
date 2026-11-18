@@ -66,6 +66,8 @@ export class NetSession {
     onChildAdded(live, onLive);
     onChildChanged(live, onLive);
     onChildAdded(track(this.r(`ev/${this.uid}`)), (s) => this.onEvent(s));
+    // every match has its own chat path, so everything in it belongs to this match
+    onChildAdded(track(this.r('chat')), (s) => { const v = s.val(); if (v?.msg) game.onNetChat?.(v); });
     onValue(track(this.r('round')), (s) => {
       const r = s.val();
       if (!r) return;
@@ -162,6 +164,11 @@ export class NetSession {
     const dist = from.distanceTo(g.player.position);
     const w = WEAPONS[rp.weaponId];
     if (!w || w.kind !== 'gun') return;
+    if (w.rail) {
+      g.effects.railBeam(from, end.distanceTo(rp.position) > 1 ? end : from.clone().add(new THREE.Vector3(-Math.sin(rp.yaw), Math.sin(rp.pitch), -Math.cos(rp.yaw)).multiplyScalar(60)));
+      audio.shot('railgun', dist);
+      return;
+    }
     if (w.flame) {
       const dir = new THREE.Vector3(-Math.sin(rp.yaw) * Math.cos(rp.pitch), Math.sin(rp.pitch), -Math.cos(rp.yaw) * Math.cos(rp.pitch));
       for (let i = 0; i < Math.min(n, 3); i++) g.effects.flame(from, dir, w.range, 3);
@@ -172,6 +179,11 @@ export class NetSession {
     g.effects.worldFlash(from, 0.5);
     const kind = { pistol: 'pistol', shotgun: 'shotgun', sniper: 'sniper', dmr: 'sniper' }[rp.weaponId] || 'rifle';
     for (let i = 0; i < Math.min(n, 2); i++) setTimeout(() => audio.shot(kind, dist), i * 60);
+  }
+
+  /** in-game chat line */
+  sendChat(msg) {
+    push(this.r('chat'), { uid: this.uid, name: this.players[this.uid]?.name || '나', team: this.myTeam, msg, t: Math.round(serverNow()) }).catch(() => {});
   }
 
   /* ---------------- messages ---------------- */

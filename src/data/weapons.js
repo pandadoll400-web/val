@@ -136,6 +136,16 @@ WEAPONS.flamer = {
   tracer: '#ff8a2a', stats: { damage: 70, rate: 95, range: 12, mobility: 75 },
 };
 
+WEAPONS.railgun = {
+  id: 'railgun', cat: 'secondary', name: '레일건', model: 'VOLT-R 전자기 레일건', kind: 'gun', rail: true, hackOnly: true, rarity: 'mythic', price: 6000,
+  desc: '방아쇠를 0.7초 누르고 있으면 충전된 전자기 탄이 발사된다. 일직선 위의 적을 모두 관통한다(벽은 못 뚫음). 일찍 떼면 취소.',
+  damage: 20, head: 40, charge: 0.7, fireInterval: 0.9, auto: true, mag: 4, reserve: 12, reload: 3.2,
+  range: 300, adsFov: 40, mobility: 0.9,
+  spread: { hip: 0.004, move: 0.01, ads: 0, bloom: 0, maxBloom: 0 },
+  recoil: { pitch: 0.03, yaw: 0.006, kickZ: 0.06, kickRX: 0.08 },
+  tracer: '#5ff7ff', stats: { damage: 40, rate: 25, range: 100, mobility: 70 },
+};
+
 export const CATEGORIES = [
   { id: "primary", name: "무기1", sub: "돌격" },
   { id: "secondary", name: "무기2", sub: "정밀" },
@@ -143,7 +153,7 @@ export const CATEGORIES = [
 ];
 export const CATEGORY_ORDER = {
   primary: ["smg", "rifle", "shotgun", "lmg", "flamer"],
-  secondary: ["burst", "dmr", "sniper", "bow", "dualmini", "katana"],
+  secondary: ["burst", "dmr", "sniper", "bow", "dualmini", "katana", "railgun"],
   sidearm: ["pistol", "knife", "grenade", "smoke"],
 };
 export const WEAPON_ORDER = [...CATEGORY_ORDER.primary, ...CATEGORY_ORDER.secondary, ...CATEGORY_ORDER.sidearm];

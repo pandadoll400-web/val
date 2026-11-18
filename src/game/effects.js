@@ -481,6 +481,31 @@ export class Effects {
     if (Math.random() < 0.3) this.puff(from.clone().addScaledVector(dir, range * 0.8), '#5a4a40', 1.4, 0.8, 0.25);
   }
 
+  /** railgun: thick cyan beam with a spiral of rings, fading fast */
+  railBeam(from, to) {
+    const dist = from.distanceTo(to);
+    if (dist < 0.3) return;
+    const core = new THREE.Mesh(beamGeo, basicMat('#e8ffff', true, 1).clone());
+    const glow = new THREE.Mesh(beamGeo, basicMat('#3fd8ff', true, 0.5).clone());
+    for (const [m, w] of [[core, 0.035], [glow, 0.12]]) {
+      m.position.copy(from); m.lookAt(to); m.scale.set(w, w, dist);
+      const op = m.material.opacity;
+      this.add(m, 0.45, (dt, k) => { m.material.opacity = op * k; m.scale.x = m.scale.y = w * (0.4 + k * 0.6); if (k <= 0.02) m.material.dispose(); });
+    }
+    const dir = to.clone().sub(from).normalize();
+    const n = Math.min(40, Math.floor(dist / 0.8));
+    const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+    const up = new THREE.Vector3().crossVectors(side, dir);
+    for (let i = 0; i < n; i++) {
+      const a = i * 0.9, p = from.clone().addScaledVector(dir, (i + 0.5) * (dist / n)).addScaledVector(side, Math.cos(a) * 0.09).addScaledVector(up, Math.sin(a) * 0.09);
+      const sp = this.glowSprite('#7af7ff', 0.12);
+      sp.position.copy(p);
+      this.add(sp, 0.35 + i * 0.006, (dt, k) => { sp.material.opacity = k; sp.position.addScaledVector(up, dt * 0.3); if (k <= 0.02) sp.material.dispose(); });
+    }
+    this.burst(to, { count: 10, color: '#7af7ff', speed: 4, size: 0.04, gravity: 4, life: 0.5 });
+    this.flashLight(to, '#5ff7ff', 6, 0.15);
+  }
+
   /** Christmas: a gift box pops up and bursts into snowflakes, ribbons and a small tree of lights */
   fxXmas(pos) {
     const life = 4;

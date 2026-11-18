@@ -221,6 +221,7 @@ export class HUD {
     else if (melee) text = '';
     else if (nade) text = s.mag + s.reserve === 0 ? `${s.def.name} 없음 — 탄약 상자로 보충` : '';
     else if (s.def.recharge) text = s.mag === 0 ? '연료 충전 중...' : '';
+    else if (s.def.rail && w.railT > 0) { const n = Math.min(4, Math.floor((w.railT / s.def.charge) * 5)); text = '⚡ 충전 ' + '▮'.repeat(n) + '▯'.repeat(4 - n); }
     else if (w.reloading) text = '재장전 중...';
     else if (s.mag === 0 && s.reserve === 0) text = s.def.kind === 'bow' ? '화살 없음 — 적이 떨군 상자를 주우세요' : '탄약 없음 — 적이 떨군 탄약 상자를 주우세요';
     else if (s.mag === 0) text = s.def.kind === 'bow' ? '' : 'R — 재장전';

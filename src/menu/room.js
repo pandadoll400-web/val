@@ -1,5 +1,6 @@
 import { THEME_ORDER, getTheme } from '../world/themes.js';
 import { currentUser } from '../net/auth.js';
+import { QUICK_CHAT } from '../net/room.js';
 
 const isHack = () => (currentUser()?.nick || '').toLowerCase() === 'hack';
 import { RoomClient, friendlyError, TEAM_SIZE, MODE_NAMES, ROOM_SLOTS, NET_VER } from '../net/room.js';
@@ -19,6 +20,14 @@ export class RoomUI {
     this.lastMatch = null;
     this.stage = new CharStage();
     this.room = new RoomClient({ onChange: () => this.render(), onClosed: (r) => this.closed(r) });
+    this.room.onChat = () => this.renderChat();
+    // room chat: free text + quick phrases
+    $('room-chat-quick').innerHTML = QUICK_CHAT.map((q, i) => `<button data-q="${i}">${q}</button>`).join('');
+    $('room-chat-quick').onclick = (e) => { const b = e.target.closest('button'); if (b) this.room.sendChat(QUICK_CHAT[+b.dataset.q]).catch(() => {}); };
+    const cin = $('room-chat-in');
+    const sendTyped = () => { if (cin.value.trim()) { this.room.sendChat(cin.value).catch(() => {}); cin.value = ''; } };
+    cin.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') sendTyped(); };
+    $('room-chat-send').onclick = sendTyped;
     this.busy = false;
 
     ui.onDuel = () => this.create(); // [플레이] → [듀얼]: a room with a code right away
@@ -202,6 +211,13 @@ export class RoomUI {
     const cap = m.mode === 'duo' ? 2 : ROOM_SLOTS[m.mode] || 2;
     while (out.length < cap) out.push({ placeholder: true, name: '빈자리' });
     return out;
+  }
+
+  renderChat() {
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const log = $('room-chat-log');
+    log.innerHTML = (this.room.chat || []).map((c) => `<div><b class="${c.uid === this.room.uid ? 'me' : ''}">${esc(c.name || '?')}</b> ${esc(c.msg)}</div>`).join('');
+    log.scrollTop = log.scrollHeight;
   }
 
   /** called every frame while the menu background is drawn */

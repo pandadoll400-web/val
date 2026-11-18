@@ -18,6 +18,11 @@ import { getTheme, randomMap } from '../world/themes.js';
 import { getPortrait } from '../menu/ui.js';
 import { currentUser } from '../net/auth.js';
 import { isXmasSkin } from '../data/charSkins.js';
+import { track, setMissionNotifier } from '../menu/missions.js';
+import { WEAPONS } from '../data/weapons.js';
+import { GameChat } from './chat.js';
+
+const isMeleeName = (name) => Object.values(WEAPONS).some((w) => w.name === name && w.kind === 'melee');
 
 const $ = (id) => document.getElementById(id);
 export const ENEMY_COUNT = 7;
@@ -74,6 +79,8 @@ export class Game {
     this.skills = new SkillSystem(this);
     this.weapons = new WeaponSystem(this);
     this.hud = new HUD(this);
+    setMissionNotifier((t) => this.hud.msg(t, 3));
+    this.chat = new GameChat(this);
     this.touch = IS_TOUCH ? new TouchControls(this) : null;
 
     this.bots = net ? net.myBots.map((uid, i) => {
@@ -136,6 +143,7 @@ export class Game {
     this.touch?.dispose();
     for (const r of Object.values(this.remotes)) r.dispose();
     this.hud.dispose();
+    this.chat?.dispose();
     this.weapons.dispose();
     for (const b of this.bots) b.dispose();
     $('hud').classList.add('hidden');
@@ -172,6 +180,11 @@ export class Game {
     const me = this.character.name;
     this.hud.killfeed(`<span class="me">${me}</span><span class="w">${info.weapon || ''}${info.headshot ? ' <span class="hs">◎ 헤드샷</span>' : ''}</span>${this.mode === 'training' ? '표적' : bot.name}`);
     if (this.mode === 'training') return; // dummies respawn, no win condition
+    if (info.from === 'player' || info.from === undefined) {
+      track('kills');
+      if (info.headshot) track('headshots');
+      if (info.melee || isMeleeName(info.weapon)) track('melee');
+    }
     this.coinsEarned += COIN_PER_KILL;
     this.spawnAmmo(bot.position);
     const left = this.totalEnemies - this.kills;
@@ -254,6 +267,7 @@ export class Game {
   finish(win) {
     if (this.over) return;
     this.over = true;
+    if (this.mode !== 'training') { track('matches'); if (win) track('wins'); }
     if (win) this.coinsEarned += COIN_WIN;
     save.coins += this.coinsEarned;
     persist();
@@ -280,6 +294,7 @@ export class Game {
     const canvas = this.renderer.domElement;
     const locked = () => document.pointerLockElement === canvas;
     this._onKeyDown = (e) => {
+      if (this.chat?.handleKey(e)) { e.preventDefault(); return; }
       if (e.code === 'Tab' || e.code === 'Space') e.preventDefault();
       this.keys[e.code] = true;
       if (e.code === 'ShiftRight') this.keys.ShiftLeft = true;
@@ -321,7 +336,7 @@ export class Game {
       w.equip((w.cur + (e.deltaY > 0 ? 1 : -1) + n) % n);
     };
     this._onContext = (e) => e.preventDefault();
-    this._onLockChange = () => { if (!locked() && !this.over) this.setPaused(true); };
+    this._onLockChange = () => { if (!locked() && !this.over && !this.chat?.typing) this.setPaused(true); };
     this._onBlur = () => { this.keys = {}; this.weapons.trigger = false; this.weapons.adsHeld = false; this.skills.cancelCharge(); };
 
     addEventListener('keydown', this._onKeyDown);
@@ -677,6 +692,9 @@ export class Game {
     this.kills++;
     this.net.pushStats(this.kills, this.deaths, this.assists);
     if (v.head) this.headshots++;
+    track('kills');
+    if (v.head) track('headshots');
+    if (isMeleeName(v.weapon)) track('melee');
     this.coinsEarned += COIN_PER_KILL;
     this.skills.onKill();
     const rp = this.remotes[v.victim];
@@ -687,6 +705,7 @@ export class Game {
   }
 
   onNetScore(score) { this.score = score; }
+  onNetChat(v) { this.chat?.add(v); }
 
   /** run a network effect handler with the sender's skin palette (Christmas skins recolour skill effects) */
   withSenderPalette(from, fn) {
@@ -769,6 +788,7 @@ export class Game {
     if (this.over) return;
     this.over = true;
     const win = result.winner === this.myTeam, draw = !result.winner;
+    track('matches'); track('online'); if (win) track('wins');
     if (win) this.coinsEarned += COIN_WIN;
     save.coins += this.coinsEarned;
     persist();

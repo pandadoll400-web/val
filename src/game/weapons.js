@@ -85,7 +85,7 @@ export function makeNote(fx, color) {
 
 /* Reload animation tracks (gun-local space). Each track: L=left-hand, tilt=[rx,ry,rz] */
 function reloadTracks(id, L) {
-  if (id === 'smg' || id === 'dmr' || id === 'lmg' || id === 'burst' || id === 'flamer') return reloadTracks('rifle', L);
+  if (id === 'smg' || id === 'dmr' || id === 'lmg' || id === 'burst' || id === 'flamer' || id === 'railgun') return reloadTracks('rifle', L);
   if (id === 'rifle') return {
     tilt: [[0, Z3], [0.12, [0.15, 0.2, 0.55]], [0.66, [0.15, 0.2, 0.55]], [0.74, [0.05, 0.25, 0.35]], [0.88, [0.05, 0.25, 0.35]], [1, Z3]],
     left: [[0, L], [0.1, [0, -0.1, -0.15]], [0.16, [0, -0.12, -0.14]], [0.3, [0.03, -0.5, -0.06]], [0.44, [0.03, -0.5, -0.06]],
@@ -861,7 +861,7 @@ export class WeaponSystem {
     this.lastShot = this.time;
     const md = s.model;
     if (md.dual) { this.dualSide = !this.dualSide; md.muzzle = this.dualSide ? md.muzzleL : md.muzzleR; md.eject = this.dualSide ? md.ejectL : md.ejectR; }
-    if (def.flame) this.fireFlame(def); else this.fireBullets(def);
+    if (def.flame) this.fireFlame(def); else if (def.rail) this.fireRail(def); else this.fireBullets(def);
 
     // recoil
     const r = def.recoil, adsK = 1 - this.adsT * 0.35;
@@ -978,6 +978,51 @@ export class WeaponSystem {
       else this.burns.set(e, { t: def.burn.secs, acc: 0, def, skin: this.slot.skin });
     }
     if (any) game.hits++;
+  }
+
+  /** railgun: hold the trigger to charge, it fires by itself when full; letting go early cancels */
+  updateRail(dt, can) {
+    const s = this.slot, def = s.def, m = s.model;
+    const ready = can && this.trigger && !this.reloading && this.drawT >= 0.9 && this.time >= this.nextFire && !this.casting;
+    if (ready && s.mag > 0) {
+      if (!this.railT) audio.railCharge?.();
+      this.railT = (this.railT || 0) + dt;
+      if (this.railT >= def.charge) { this.railT = 0; this.tryFire(); }
+    } else {
+      if (this.trigger && can && s.mag <= 0 && !this.triggerUsed) this.tryFire(); // empty: click + reload
+      this.railT = 0;
+    }
+    if (m.coilMat) m.coilMat.emissiveIntensity = 0.4 + (this.railT / def.charge) * 3.5;
+  }
+
+  /** railgun shot: pierces every enemy on the line up to the first wall */
+  fireRail(def) {
+    const game = this.game, cam = game.camera;
+    const origin = cam.position.clone();
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    this.raycaster.set(origin, dir);
+    this.raycaster.far = def.range;
+    const hits = this.raycaster.intersectObjects(game.world.solids.concat(game.enemyMeshes()), false);
+    let end = origin.clone().addScaledVector(dir, def.range);
+    const done = new Set();
+    let hitAny = false;
+    for (const h of hits) {
+      const enemy = h.object.userData.enemy;
+      if (!enemy) { end = h.point.clone(); game.effects.impact(h.point, null, 'ice'); break; }
+      if (done.has(enemy) || !enemy.alive) continue;
+      done.add(enemy);
+      hitAny = true;
+      const head = game.hack || h.object.userData.part === 'head';
+      let dmg = (head ? def.head : def.damage) * game.skills.damageMul();
+      if (game.player.weakT > 0) dmg = 1;
+      const res = enemy.applyDamage(Math.round(dmg), { weapon: def.name, headshot: head, from: 'player', point: h.point, skin: this.slot.skin });
+      game.hud.hitmarker(res.killed ? 'kill' : head ? 'head' : 'hit');
+      game.hud.damageNumber(h.point, Math.round(dmg), head);
+      if (res.killed) audio.kill(); else audio.hit(head);
+    }
+    if (hitAny) game.hits++;
+    this.lastTracerEnd = end.clone();
+    game.effects.railBeam(this.muzzleWorld(), end);
   }
 
   /** burning enemies take a little damage every tick */
@@ -1215,7 +1260,8 @@ export class WeaponSystem {
     }
 
     const onBike = game.skills.bikeT > 0;
-    if (this.trigger && p.alive && !onBike && (def.auto || !this.triggerUsed)) this.tryFire();
+    if (def.rail) this.updateRail(dt, p.alive && !onBike);
+    else if (this.trigger && p.alive && !onBike && (def.auto || !this.triggerUsed)) this.tryFire();
     if (this.burstLeft > 0 && p.alive && this.time >= this.nextFire) this.tryFire(true);
 
     this.bloom = damp(this.bloom, 0, 5, dt);

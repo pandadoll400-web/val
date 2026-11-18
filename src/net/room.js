@@ -1,10 +1,14 @@
 import {
-  getDb, ref, set, get, update, remove, push, onValue, off, onDisconnect, runTransaction,
+  getDb, ref, set, get, update, remove, push, onValue, onChildAdded, off, onDisconnect, runTransaction,
   myUid, serverNow, watchServerOffset, isPermissionError, serverTimestamp,
 } from './firebase.js';
 import { save, outfitFor } from '../save.js';
 import { CHARACTERS } from '../data/characters.js';
 import { randomMap, THEME_ORDER } from '../world/themes.js';
+
+/** quick chat phrases (room + in game) */
+export const QUICK_CHAT = ['좋아요!', '도와줘!', '여기로 와!', '조심해!', '고마워!', 'GG'];
+export const cleanChat = (m) => String(m || '').replace(/s+/g, ' ').trim().slice(0, 60);
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no O/0/I/1
 const randomCode = () => Array.from({ length: 5 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
@@ -21,7 +25,7 @@ export const CAPTURE_TIME = 20, DOM_TIME = 360;
 export const ROUND_TIME = 90, OVERTIME = 30; // seconds
 const MAX_ROOM = 4;
 /** online version: everyone in a room must run the same build of the maps / rules (bump when they change) */
-export const NET_VER = 9;
+export const NET_VER = 10;
 const OLD_VER = '게임 버전이 다릅니다 — 둘 다 새로고침(Ctrl+F5)해서 최신 버전으로 맞춘 뒤 다시 들어오세요';
 const BOT_NAMES = ['AI 블리자드', 'AI 툰드라', 'AI 글래셔', 'AI 폴라리스', 'AI 아발란체', 'AI 서리발톱', 'AI 눈보라', 'AI 북풍'];
 
@@ -123,6 +127,15 @@ export class RoomClient {
     if (!alreadyWritten) await set(me, myProfile());
     this._metaRef = this.r('meta');
     this._playersRef = this.r('players');
+    this._chatRef = this.r('chat');
+    this.chat = [];
+    onChildAdded(this._chatRef, (s) => {
+      const v = s.val();
+      if (!v?.msg) return;
+      this.chat.push(v);
+      if (this.chat.length > 30) this.chat.shift();
+      this.onChat?.(this);
+    });
     onValue(this._metaRef, (s) => {
       const m = s.val();
       if (!m) { this.close(this.meta && this.meta.host !== this.uid ? '방장이 방을 나갔습니다' : '방이 닫혔습니다'); return; }
@@ -139,6 +152,15 @@ export class RoomClient {
       if (this.friendLeft && this.isHost && this.meta?.state === 'queue') this.cancelQueue();
       this.onChange?.(this);
     });
+  }
+
+  /** room chat (60 chars, at most one message a second) */
+  async sendChat(msg) {
+    msg = cleanChat(msg);
+    if (!msg || !this.code || Date.now() - (this._chatT || 0) < 1000) return false;
+    this._chatT = Date.now();
+    await push(this.r('chat'), { uid: this.uid, name: save.name, msg, t: serverNow() });
+    return true;
   }
 
   async refreshProfile() { if (this.code) await set(this.r(`players/${this.uid}`), myProfile()); }
@@ -246,7 +268,9 @@ export class RoomClient {
     this.mm = null;
     if (this._metaRef) off(this._metaRef);
     if (this._playersRef) off(this._playersRef);
-    this._metaRef = this._playersRef = null;
+    if (this._chatRef) off(this._chatRef);
+    this._metaRef = this._playersRef = this._chatRef = null;
+    this.chat = [];
     this.code = null;
     this.meta = null;
     this.players = {};
