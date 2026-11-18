@@ -162,6 +162,12 @@ export class NetSession {
     const dist = from.distanceTo(g.player.position);
     const w = WEAPONS[rp.weaponId];
     if (!w || w.kind !== 'gun') return;
+    if (w.flame) {
+      const dir = new THREE.Vector3(-Math.sin(rp.yaw) * Math.cos(rp.pitch), Math.sin(rp.pitch), -Math.cos(rp.yaw) * Math.cos(rp.pitch));
+      for (let i = 0; i < Math.min(n, 3); i++) g.effects.flame(from, dir, w.range, 3);
+      audio.shot('flamer', dist);
+      return;
+    }
     if (end.distanceTo(rp.position) > 1) g.effects.tracer(from, end, w.tracer || '#ffc35a', 0.016, 280);
     g.effects.worldFlash(from, 0.5);
     const kind = { pistol: 'pistol', shotgun: 'shotgun', sniper: 'sniper', dmr: 'sniper' }[rp.weaponId] || 'rifle';

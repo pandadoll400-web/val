@@ -68,7 +68,7 @@ export class CharStage {
         label.innerHTML = `<b>${e.name || '친구를 기다리는 중…'}</b>`;
       } else {
         const c = getCharacter(e.charId);
-        model = makeSoldier(c.color, c.accent, c.id);
+        model = makeSoldier(c.color, c.accent, c.id, e.outfit);
         const r = RARITY[c.rarity];
         label.innerHTML = `${e.tag ? `<span class="tag">${e.tag}</span>` : ''}<b>${e.name || c.name}</b><small style="color:${r.color}">${c.name} · ${r.name}</small>`;
       }

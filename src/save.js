@@ -11,6 +11,8 @@ const DEFAULT = {
   volume: 0.7,
   fov: 75,
   name: '',
+  ownedOutfits: [],
+  outfit: null,
 };
 
 function load() {
@@ -51,6 +53,9 @@ function normalize(save) {
   // weapon skins bought in the shop, and which skin each weapon uses
   if (!Array.isArray(save.ownedSkins)) save.ownedSkins = [];
   if (!save.skins || typeof save.skins !== 'object') save.skins = {};
+  // bundle character outfits
+  if (!Array.isArray(save.ownedOutfits)) save.ownedOutfits = [];
+  if (save.outfit && !save.ownedOutfits.includes(save.outfit)) save.outfit = null;
   return save;
 }
 

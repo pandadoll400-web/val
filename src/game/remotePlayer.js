@@ -67,7 +67,7 @@ export class RemotePlayer {
     this.name = profile?.name || '친구';
     const c = getCharacter(profile?.char);
     this.charName = c.name;
-    this.model = makeSoldier(c.color, c.accent, c.id);
+    this.model = makeSoldier(c.color, c.accent, c.id, profile?.outfit);
     this.position = new THREE.Vector3(0, -50, 0);
     this.vel = new THREE.Vector3();
     this.yaw = 0;

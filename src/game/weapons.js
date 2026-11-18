@@ -65,7 +65,7 @@ export function makeNote(fx, color) {
 
 /* Reload animation tracks (gun-local space). Each track: L=left-hand, tilt=[rx,ry,rz] */
 function reloadTracks(id, L) {
-  if (id === 'smg' || id === 'dmr' || id === 'lmg' || id === 'burst') return reloadTracks('rifle', L);
+  if (id === 'smg' || id === 'dmr' || id === 'lmg' || id === 'burst' || id === 'flamer') return reloadTracks('rifle', L);
   if (id === 'rifle') return {
     tilt: [[0, Z3], [0.12, [0.15, 0.2, 0.55]], [0.66, [0.15, 0.2, 0.55]], [0.74, [0.05, 0.25, 0.35]], [0.88, [0.05, 0.25, 0.35]], [1, Z3]],
     left: [[0, L], [0.1, [0, -0.1, -0.15]], [0.16, [0, -0.12, -0.14]], [0.3, [0.03, -0.5, -0.06]], [0.44, [0.03, -0.5, -0.06]],
@@ -138,7 +138,7 @@ export class WeaponSystem {
     this.vmFlash = new THREE.PointLight('#ffb35a', 0, 2.5, 1.5);
     this.vmScene.add(this.vmFlash);
 
-    this.sleeve = new THREE.MeshStandardMaterial({ color: game.character.color, roughness: 0.8 });
+    this.sleeve = new THREE.MeshStandardMaterial({ color: save.outfit === 'xmas' ? '#c8202a' : game.character.color, roughness: 0.8 });
     this.root = new THREE.Group();
     this.pivot = new THREE.Group();
     this.root.add(this.pivot);
@@ -147,6 +147,15 @@ export class WeaponSystem {
     this.rightArm = makeArm(this.sleeve, 1);
     this.leftArm = makeArm(this.sleeve, -1);
     this.pivot.add(this.rightArm, this.leftArm);
+    if (save.outfit === 'xmas') {
+      // santa coat: white fur cuffs
+      const fur = new THREE.MeshStandardMaterial({ color: '#f7f7f2', roughness: 0.95 });
+      for (const [arm, side] of [[this.rightArm, 1], [this.leftArm, -1]]) {
+        const c = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.096, 0.07), fur);
+        c.position.set(side * 0.012, -0.02, 0.06); c.rotation.set(0.32, side * 0.25, 0);
+        arm.add(c);
+      }
+    }
     this.vmMaterials = [...Object.values(VM), this.sleeve];
     // first-person legs shown while sliding
     this.legs = makeLegs(this.sleeve);
@@ -167,6 +176,7 @@ export class WeaponSystem {
       return { id, def, model, skin: model.skin || null, mag: def.mag, reserve: def.reserve, reload: reloadTracks(id, model.leftRest.toArray()), cycle: cycleTracks(id, model.leftRest.toArray()) };
     });
 
+    this.burns = new Map();
     this.cur = -1;
     this.time = 0;
     this.drawT = 1;
@@ -821,7 +831,7 @@ export class WeaponSystem {
     this.lastShot = this.time;
     const md = s.model;
     if (md.dual) { this.dualSide = !this.dualSide; md.muzzle = this.dualSide ? md.muzzleL : md.muzzleR; md.eject = this.dualSide ? md.ejectL : md.ejectR; }
-    this.fireBullets(def);
+    if (def.flame) this.fireFlame(def); else this.fireBullets(def);
 
     // recoil
     const r = def.recoil, adsK = 1 - this.adsT * 0.35;
@@ -834,14 +844,14 @@ export class WeaponSystem {
     // muzzle + sound
     const m = s.model;
     const vmPos = m.muzzle.getWorldPosition(new THREE.Vector3());
-    if (!this.scoped) this.game.effects.muzzleFlash(this.vmScene, vmPos, this.muzzleWorld(), m.flashScale);
+    if (!this.scoped && !def.flame) this.game.effects.muzzleFlash(this.vmScene, vmPos, this.muzzleWorld(), m.flashScale);
     this.vmFlash.position.copy(vmPos);
     this.vmFlash.intensity = 3;
     this.vmFlashT = 0.05;
     audio.shot(def.id);
 
     if (def.id === 'shotgun' || def.id === 'sniper') { this.cycleP = 0; this.firedEvents.clear(); }
-    else this.ejectShell();
+    else if (!def.flame) this.ejectShell();
     skills.onPlayerShot();
     this.game.onPlayerShot();
     if (s.mag === 0 && s.reserve > 0) this.autoReloadAt = this.time + (def.id === 'sniper' ? def.cycle + 0.1 : 0.25);
@@ -908,6 +918,52 @@ export class WeaponSystem {
       game.hud.hitmarker(res.killed ? 'kill' : h.head ? 'head' : 'hit');
       game.hud.damageNumber(h.point, Math.round(h.dmg), h.head);
       if (res.killed) audio.kill(); else audio.hit(h.head);
+    }
+  }
+
+  /** flamethrower: everything hostile inside the cone (and not behind a wall) takes damage and catches fire */
+  fireFlame(def) {
+    const game = this.game, cam = game.camera;
+    const origin = cam.position.clone();
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    game.effects.flame(this.muzzleWorld(), fwd, def.range, 3);
+    this.lastTracerEnd = origin.clone().addScaledVector(fwd, def.range);
+    let any = false;
+    for (const e of game.hostiles()) {
+      if (!e.alive) continue;
+      const c = e.position.clone().setY(e.position.y + 1.1);
+      const d = c.distanceTo(origin);
+      if (d > def.range + 0.6) continue;
+      const dir = c.clone().sub(origin).normalize();
+      if (dir.dot(fwd) < (d < 2 ? 0.6 : def.cone)) continue;
+      this.raycaster.set(origin, dir); this.raycaster.far = d;
+      if (this.raycaster.intersectObjects(game.world.solids, false).length) continue;
+      any = true;
+      const head = game.hack;
+      let dmg = (head ? def.head : def.damage) * game.skills.damageMul();
+      if (game.player.weakT > 0) dmg = 1;
+      const res = e.applyDamage(Math.round(dmg), { weapon: def.name, headshot: head, from: 'player', point: c, skin: this.slot.skin });
+      game.hud.hitmarker(res.killed ? 'kill' : head ? 'head' : 'hit');
+      if (res.killed) audio.kill();
+      else this.burns.set(e, { t: def.burn.secs, acc: 0, def, skin: this.slot.skin });
+    }
+    if (any) game.hits++;
+  }
+
+  /** burning enemies take a little damage every tick */
+  updateBurns(dt) {
+    const game = this.game;
+    for (const [e, b] of this.burns) {
+      b.t -= dt; b.acc += dt;
+      if (!e.alive || e.gone || b.t <= 0) { this.burns.delete(e); continue; }
+      if (Math.random() < dt * 8) game.effects.puff(e.position.clone().setY(e.position.y + 0.6 + Math.random()), '#ff7a1a', 0.6, 0.4, 0.8);
+      if (b.acc >= b.def.burn.tick) {
+        b.acc -= b.def.burn.tick;
+        const p = e.position.clone().setY(e.position.y + 1.1);
+        const res = e.applyDamage(b.def.burn.dmg, { weapon: b.def.name, from: 'player', point: p, skin: b.skin });
+        game.hud.damageNumber(p, b.def.burn.dmg, false);
+        if (res.killed) { audio.kill(); game.hud.hitmarker('kill'); this.burns.delete(e); }
+      }
     }
   }
 
@@ -1072,6 +1128,8 @@ export class WeaponSystem {
     const game = this.game, p = game.player, s = this.slot, def = s.def, m = s.model;
     const relMul = game.skills.reloadMul();
 
+    if (this.burns.size) this.updateBurns(dt);
+    m.skinAnim?.(this.time);
     if (this.drawT < 1) this.drawT = Math.min(1, this.drawT + dt / 0.38);
     if (this.reloading) this.updateReload(dt * relMul);
     if (this.cycleP >= 0) {

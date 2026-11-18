@@ -190,7 +190,7 @@ export class RoomUI {
     const slots = r.slots;
     if (!slots.length) slots.push({ id: r.uid, char: save.character, name: save.name, team: 'A' });
     const out = slots.map((s) => ({
-      charId: s.char, name: s.name,
+      charId: s.char, outfit: s.outfit || null, name: s.name,
       tag: s.bot ? 'AI' : [s.id === r.uid ? '나' : '친구', hostTag(s.id)].filter(Boolean).join(' · '),
     }));
     const cap = m.mode === 'duo' ? 2 : ROOM_SLOTS[m.mode] || 2;

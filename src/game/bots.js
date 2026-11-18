@@ -51,7 +51,7 @@ export class AIBot {
     this.alive = true;
     this.onGround = true;
 
-    if (net) { const c = getCharacter(net.char); this.model = makeSoldier(c.color, c.accent, c.id); }
+    if (net) { const c = getCharacter(net.char); this.model = makeSoldier(c.color, c.accent, c.id, net.outfit); }
     else this.model = makeSoldier(passive ? '#d9823a' : COLORS[index % COLORS.length], passive ? '#ffd36b' : '#ff5b4a');
     this.home = pos.clone();
     if (passive) this.yaw = Math.PI; // face the shooting booth (+Z)

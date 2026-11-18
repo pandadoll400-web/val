@@ -279,6 +279,7 @@ export class Effects {
     if (kind === 'aurora') this.fxAurora(pos);
     else if (kind === 'inferno') this.fxInferno(pos);
     else if (kind === 'cyber') this.fxCyber(pos);
+    else if (kind === 'xmas') this.fxXmas(pos);
   }
 
   /** Aurora: a light pillar with spiralling teal/violet ribbons and falling stardust */
@@ -432,6 +433,78 @@ export class Effects {
       });
     }
     this.flashLight(pos, '#ff2bd6', 12, 0.6);
+  }
+
+  /** flamethrower: a puff of fire sprites streaming from 'from' along 'dir' (range metres) */
+  flame(from, dir, range = 9, n = 3) {
+    for (let i = 0; i < n; i++) {
+      const col = ['#ffd35a', '#ff8a2a', '#ff5a14'][i % 3];
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: col, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false }));
+      const v = dir.clone().multiplyScalar(range * (1.5 + Math.random() * 0.5));
+      v.x += (Math.random() - 0.5) * 2.2; v.y += (Math.random() - 0.3) * 1.8; v.z += (Math.random() - 0.5) * 2.2;
+      sp.position.copy(from).addScaledVector(dir, Math.random() * 0.4);
+      const life = 0.45 + Math.random() * 0.2;
+      sp.scale.setScalar(0.15);
+      this.add(sp, life, (dt, k) => {
+        sp.position.addScaledVector(v, dt);
+        v.multiplyScalar(1 - dt * 1.8); v.y += dt * 2.5;
+        sp.scale.setScalar(0.2 + (1 - k) * 1.6);
+        sp.material.opacity = Math.min(1, k * 1.6) * 0.85;
+        if (k <= 0.02) sp.material.dispose();
+      });
+    }
+    if (Math.random() < 0.3) this.puff(from.clone().addScaledVector(dir, range * 0.8), '#5a4a40', 1.4, 0.8, 0.25);
+  }
+
+  /** Christmas: a gift box pops up and bursts into snowflakes, ribbons and a small tree of lights */
+  fxXmas(pos) {
+    const life = 4;
+    const gift = new THREE.Group();
+    const red = new THREE.MeshStandardMaterial({ color: '#d0202a', roughness: 0.5 });
+    const gold = new THREE.MeshStandardMaterial({ color: '#ffd24a', metalness: 0.8, roughness: 0.3, emissive: '#6a4a00', emissiveIntensity: 0.4 });
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.8), red);
+    const lid = new THREE.Group();
+    lid.add(new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.16, 0.88), red));
+    lid.add(new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.17, 0.14), gold), new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.17, 0.9), gold));
+    const bow1 = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.04, 6, 12), gold); bow1.position.set(-0.12, 0.16, 0); bow1.rotation.y = Math.PI / 2;
+    const bow2 = bow1.clone(); bow2.position.x = 0.12;
+    lid.add(bow1, bow2);
+    lid.position.y = 0.38;
+    box.add(new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.61, 0.14), gold), new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.61, 0.82), gold));
+    gift.add(box, lid);
+    gift.position.copy(pos).setY(0.3);
+    let popped = false;
+    this.add(gift, life, (dt, k) => {
+      const t = life * (1 - k);
+      gift.scale.setScalar(Math.min(1, t * 5) * (t < 0.9 ? 1 + Math.sin(t * 30) * 0.05 * (0.9 - t) : 1));
+      gift.rotation.y += dt * 0.8;
+      if (t > 0.9) { lid.position.y += dt * 4; lid.rotation.x += dt * 5; lid.rotation.z += dt * 3; }
+      if (t > 0.9 && !popped) {
+        popped = true;
+        this.burst(pos.clone().setY(0.8), { count: 26, color: '#ffffff', speed: 7, size: 0.07, gravity: 3, life: 2 });
+        this.burst(pos.clone().setY(0.8), { count: 12, color: '#ff3a4a', speed: 6, size: 0.06, gravity: 5, life: 1.5 });
+        this.burst(pos.clone().setY(0.8), { count: 12, color: '#3adf6a', speed: 6, size: 0.06, gravity: 5, life: 1.5 });
+        this.ring(pos, '#ffd24a', 3, 0.8);
+        this.flashLight(pos, '#ffd24a', 10, 0.5);
+      }
+      if (k < 0.3) gift.scale.multiplyScalar(k / 0.3);
+      if (k <= 0.02) gift.traverse((o) => o.geometry?.dispose());
+    });
+    // gently falling snow around the spot
+    const flakeGeo = new THREE.OctahedronGeometry(0.05, 0);
+    for (let i = 0; i < 30; i++) {
+      const m = new THREE.Mesh(flakeGeo, basicMat('#ffffff', false, 0.9));
+      const start = pos.clone().add(new THREE.Vector3((Math.random() - 0.5) * 4, 2.5 + Math.random() * 2, (Math.random() - 0.5) * 4));
+      const sp = 0.5 + Math.random() * 0.5, ph = Math.random() * 6;
+      m.position.copy(start);
+      this.add(m, life, (dt, k) => {
+        const t = life * (1 - k);
+        m.position.y = Math.max(0.05, start.y - t * sp);
+        m.position.x = start.x + Math.sin(t * 2 + ph) * 0.2;
+        m.rotation.y += dt * 2;
+        m.visible = k > 0.05;
+      });
+    }
   }
 
   flashLight(pos, color, intensity, time) {

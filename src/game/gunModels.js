@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { skinMaterials, skinBundle } from '../data/skins.js';
+import { addSkinParts } from './skinParts.js';
 
 /* ---- procedural surface textures (wear, stipple, grain) ---- */
 function canvasTex(draw, repeat = 3, srgb = false) {
@@ -869,7 +870,53 @@ function katana() {
   };
 }
 
-export const GUN_BUILDERS = { pistol, knife, smg, shotgun, rifle, bow, dmr, sniper, lmg, burst, grenade, smoke, dualmini, katana };
+/* ======================= FLAMETHROWER ======================= */
+const pilotMat = new THREE.MeshBasicMaterial({ color: '#4fb0ff' });
+function flamer() {
+  const g = new THREE.Group();
+  // receiver / pump housing
+  prof(g, [[-0.08, -0.005], [0.16, -0.005], [0.16, 0.06], [0.14, 0.072], [-0.06, 0.072], [-0.08, 0.055]], 0.06, VM.metal, 0.005);
+  prof(g, [[0.16, 0.005], [0.27, 0.01], [0.27, 0.05], [0.16, 0.06]], 0.05, VM.poly, 0.004);       // stock block
+  prof(g, [[0.27, -0.02], [0.29, -0.02], [0.29, 0.07], [0.27, 0.07]], 0.056, VM.rubber, 0.004);  // butt pad
+  for (let i = 0; i < 4; i++) part(g, B(0.062, 0.006, 0.012), VM.metal2, 0, 0.074, 0.1 - i * 0.04); // cooling ribs
+  part(g, B(0.03, 0.03, 0.05), VM.accent, 0, 0.09, -0.02);                                      // pressure gauge housing
+  part(g, C(0.014, 0.006), VM.glass, 0, 0.09, -0.048);
+  // nozzle tube with a perforated heat shield
+  part(g, C(0.016, 0.38), VM.steel, 0, 0.036, -0.3);
+  part(g, new THREE.CylinderGeometry(0.03, 0.03, 0.22, 10, 1, true).rotateX(Math.PI / 2), VM.metal, 0, 0.036, -0.26);
+  for (let i = 0; i < 5; i++) for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    part(g, B(0.006, 0.006, 0.02), VM.rubber, Math.cos(a) * 0.031, 0.036 + Math.sin(a) * 0.031, -0.18 - i * 0.04);
+  }
+  part(g, CT(0.024, 0.02, 0.05), VM.metal2, 0, 0.036, -0.505);                                 // flared tip
+  part(g, new THREE.TorusGeometry(0.024, 0.005, 6, 14), VM.accent, 0, 0.036, -0.53);
+  // pilot light under the tip
+  part(g, C(0.006, 0.06), VM.steel, 0, 0.006, -0.5);
+  part(g, new THREE.SphereGeometry(0.008, 8, 6), pilotMat, 0, 0.006, -0.535);
+  // grips
+  prof(g, [[-0.004, -0.005], [0.04, -0.005], [0.024, -0.1], [-0.016, -0.102], [-0.012, -0.03]], 0.034, VM.poly, 0.004);
+  part(g, new THREE.TorusGeometry(0.018, 0.003, 6, 14, Math.PI), VM.poly, 0, -0.018, -0.035, 0, Math.PI / 2, Math.PI);
+  part(g, CT(0.012, 0.014, 0.08).rotateX(-Math.PI / 2), VM.poly, 0, -0.03, -0.3);              // front handle
+  part(g, B(0.008, 0.04, 0.008), VM.metal, 0, 0.005, -0.3);
+  // fuel tank (the 'mag')
+  const mag = new THREE.Group();
+  mag.position.set(0, -0.035, -0.11);
+  part(mag, C(0.04, 0.16), VM.accent, 0, -0.035, 0);
+  part(mag, new THREE.SphereGeometry(0.04, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(-Math.PI / 2), VM.accent, 0, -0.035, -0.08);
+  part(mag, new THREE.SphereGeometry(0.04, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2), VM.accent, 0, -0.035, 0.08);
+  for (const z of [-0.05, 0.05]) part(mag, new THREE.TorusGeometry(0.041, 0.004, 6, 16), VM.metal, 0, -0.035, z);
+  part(mag, B(0.02, 0.02, 0.03), VM.metal2, 0, 0.01, 0);                                        // valve
+  g.add(mag);
+  return {
+    group: g, kind: 'mag', mag,
+    muzzle: point(g, 0, 0.036, -0.56), eject: point(g, 0.03, 0.04, -0.04),
+    sightY: 0.105, hip: new THREE.Vector3(0.18, -0.2, -0.38), adsZ: -0.22,
+    grip: new THREE.Vector3(0, -0.045, 0.012), leftRest: new THREE.Vector3(0, -0.06, -0.3),
+    flashScale: 0.01,
+  };
+}
+
+export const GUN_BUILDERS = { pistol, knife, smg, shotgun, rifle, bow, dmr, sniper, lmg, burst, grenade, smoke, dualmini, katana, flamer };
 
 // which skin slot each shared viewmodel material maps to
 const SKIN_SLOT = new Map([
@@ -888,6 +935,7 @@ export function buildGun(id, sid = null) {
       const slot = o.material.userData.skinSlot || SKIN_SLOT.get(o.material);
       if (slot && mats[slot]) o.material = mats[slot];
     });
+    addSkinParts(bundle.id, id, m);
     m.skin = bundle.id;
   }
   if (m.mag) m.magBase = m.mag.position.clone();

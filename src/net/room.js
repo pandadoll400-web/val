@@ -21,7 +21,7 @@ export const CAPTURE_TIME = 20, DOM_TIME = 360;
 export const ROUND_TIME = 90, OVERTIME = 30; // seconds
 const MAX_ROOM = 4;
 /** online version: everyone in a room must run the same build of the maps / rules (bump when they change) */
-export const NET_VER = 7;
+export const NET_VER = 8;
 const OLD_VER = '게임 버전이 다릅니다 — 둘 다 새로고침(Ctrl+F5)해서 최신 버전으로 맞춘 뒤 다시 들어오세요';
 const BOT_NAMES = ['AI 블리자드', 'AI 툰드라', 'AI 글래셔', 'AI 폴라리스', 'AI 아발란체', 'AI 서리발톱', 'AI 눈보라', 'AI 북풍'];
 
@@ -45,7 +45,7 @@ export function roomSlots(players, bots, mode, teams = {}) {
 export function myProfile() {
   const skins = {};
   for (const id of Object.values(save.loadout)) if (save.skins?.[id] && save.ownedSkins.includes(save.skins[id])) skins[id] = save.skins[id];
-  return { name: save.name, char: save.character, loadout: { ...save.loadout }, skins, joined: Date.now(), v: NET_VER };
+  return { name: save.name, char: save.character, outfit: save.outfit || null, loadout: { ...save.loadout }, skins, joined: Date.now(), v: NET_VER };
 }
 
 export function friendlyError(e) {

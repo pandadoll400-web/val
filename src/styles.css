@@ -384,6 +384,12 @@ table.kda .kp small { display: block; font-size: 11px; color: rgba(255,255,255,.
 .bundle.inferno::before { background: repeating-linear-gradient(115deg, transparent 0 22px, rgba(255,120,30,.08) 22px 24px); }
 .bundle.cyber { background: linear-gradient(160deg, #14081f, #1b0b2e 50%, #061a24); }
 .bundle.cyber::before { background-image: linear-gradient(rgba(63,246,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,43,214,.1) 1px, transparent 1px); background-size: 22px 22px; }
+.bundle.xmas { background: radial-gradient(ellipse at 50% 0%, #2a6a3a 0%, #0f2a1a 50%, #3a0a10 100%); }
+.bundle.xmas::before { background-image: radial-gradient(2px 2px at 20% 30%, #fff 50%, transparent 51%), radial-gradient(2px 2px at 70% 20%, #fff 50%, transparent 51%), radial-gradient(1.5px 1.5px at 40% 70%, #fff 50%, transparent 51%), radial-gradient(2px 2px at 85% 60%, #fff 50%, transparent 51%), radial-gradient(1.5px 1.5px at 10% 80%, #fff 50%, transparent 51%); background-size: 120px 120px; animation: snowFall 6s linear infinite; }
+@keyframes snowFall { from { background-position: 0 0; } to { background-position: 30px 120px; } }
+.bundle.xmas .b-title { color: #fff; text-shadow: 0 0 12px #ff3a4a, 0 0 24px #3adf6a; }
+.bundle.xmas .b-weapons { grid-template-columns: repeat(3, 1fr); }
+.b-w.outfit img { height: 72px; }
 .b-ribbon { display: inline-block; font-size: 11.5px; font-weight: 900; color: #0b1220; padding: 3px 10px; border-radius: 999px; margin-bottom: 10px; }
 .b-title { font-size: 28px; font-weight: 900; letter-spacing: -.01em; }
 .bundle.aurora .b-title { background: linear-gradient(90deg, #7dffe0, #8fb8ff, #c9a2ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -412,7 +418,9 @@ table.kda .kp small { display: block; font-size: 11px; color: rgba(255,255,255,.
 .skin-opt.aurora { background: linear-gradient(90deg, rgba(63,255,208,.3), rgba(154,107,255,.3)); }
 .skin-opt.inferno { background: linear-gradient(90deg, rgba(255,90,20,.35), rgba(240,192,96,.25)); }
 .skin-opt.cyber { background: linear-gradient(90deg, rgba(255,43,214,.3), rgba(63,246,255,.3)); }
+.skin-opt.xmas { background: linear-gradient(90deg, rgba(216,30,42,.45), rgba(31,138,58,.45)); }
 .skin-opt.locked { opacity: .55; }
+.outfit-row { margin: 8px 0; }
 /* shop panel: the list itself is the only scroller, so the last card's price/buy row is always reachable */
 .panel.shop { display: flex; flex-direction: column; overflow: hidden; height: 86vh; }
 .panel.shop .shop-list { flex: 1; min-height: 0; max-height: none; padding-bottom: 8px; }

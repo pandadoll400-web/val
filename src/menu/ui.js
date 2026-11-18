@@ -7,6 +7,10 @@ import { buildGun, getWeaponIcons, getWeaponIcon } from '../game/gunModels.js';
 import { EmotePlayer, speak } from './emotes.js';
 import { BUNDLES, skinsForWeapon, skinId } from '../data/skins.js';
 import { audio } from '../audio.js';
+import { currentUser } from '../net/auth.js';
+
+const isHack = () => (currentUser()?.nick || '').toLowerCase() === 'hack';
+const OUTFIT_NAMES = { xmas: '🎄 크리스마스' };
 
 const $ = (id) => document.getElementById(id);
 const PANELS = ['panel-mode', 'panel-chars', 'panel-weapons', 'panel-shop', 'panel-settings'];
@@ -107,7 +111,7 @@ export class MenuUI {
     const wn = (id) => `<b style="color:${RARITY[WEAPONS[id].rarity].color}">${WEAPONS[id].name}</b>`;
     $('loadout-chip').innerHTML = `캐릭터 <b>${c.name}</b> <span style="color:${RARITY[c.rarity].color}">(${RARITY[c.rarity].name})</span>
       · 무기 ${wn(lo.primary)} / ${wn(lo.secondary)} / ${wn(lo.sidearm)}
-      <div class="ver">v1.6.2 · 빌드 ${__BUILD__}</div>`;
+      <div class="ver">v1.7 · 빌드 ${__BUILD__}</div>`;
   }
 
   /* ---------- characters ---------- */
@@ -144,7 +148,15 @@ export class MenuUI {
       <button id="char-action" class="btn primary small" ${selected ? 'disabled' : ''}>
         ${selected ? '선택됨' : owned ? '이 캐릭터 선택' : `구매하기 ◆ ${c.price.toLocaleString()}`}
       </button>
-      ${owned ? '' : '<div class="hint">적 처치 1명당 ◆20, 승리 시 ◆300을 얻습니다.</div>'}`;
+      ${owned ? '' : '<div class="hint">적 처치 1명당 ◆20, 승리 시 ◆300을 얻습니다.</div>'}
+      ${save.ownedOutfits.length ? `<div class="skin-row outfit-row"><span>의상</span>
+        <button class="skin-opt ${!save.outfit ? 'on' : ''}" data-o="">기본</button>
+        ${save.ownedOutfits.map((o) => `<button class="skin-opt ${o} ${save.outfit === o ? 'on' : ''}" data-o="${o}">${OUTFIT_NAMES[o] || o}</button>`).join('')}</div>` : ''}`;
+    $('char-detail').querySelectorAll('[data-o]').forEach((b) => (b.onclick = () => {
+      save.outfit = b.dataset.o || null;
+      persist();
+      this.renderChars();
+    }));
     $('char-emote').onclick = () => this.playEmote();
     $('char-action').onclick = (e) => {
       if (owned) save.character = c.id;
@@ -287,8 +299,9 @@ export class MenuUI {
   /* ---------- shop (vertical scrolling bundle list) ---------- */
   renderShop() {
     const list = $('shop-list');
-    list.innerHTML = BUNDLES.map((b) => {
-      const owned = b.weapons.every((wid) => save.ownedSkins.includes(skinId(b.id, wid)));
+    list.innerHTML = BUNDLES.filter((b) => !b.hackOnly || isHack()).map((b) => {
+      const owned = b.weapons.every((wid) => save.ownedSkins.includes(skinId(b.id, wid))) && (!b.outfit || save.ownedOutfits.includes(b.outfit));
+      const free = !b.price;
       const r = RARITY[b.rarity];
       return `<section class="bundle ${b.id}">
         <div class="b-ribbon" style="background:${r.color}">${r.name} 번들</div>
@@ -297,17 +310,19 @@ export class MenuUI {
         <div class="b-weapons">
           ${b.weapons.map((wid) => `<button class="b-w" data-b="${b.id}" data-w="${wid}" title="눌러서 3D로 보기">
             <img src="${getWeaponIcon(wid, skinId(b.id, wid))}" alt=""><span>${WEAPONS[wid].name}</span></button>`).join('')}
+          ${b.outfit ? `<button class="b-w outfit" data-b="${b.id}" data-outfit="${b.outfit}" title="눌러서 3D로 보기">
+            <img src="${getPortrait(getCharacter(save.character), b.outfit)}" alt=""><span>캐릭터 의상</span></button>` : ''}
         </div>
         <div class="b-desc">${b.desc}</div>
         <div class="b-fx">✦ 처치 이펙트: <b>${b.killFx}</b></div>
         <div class="b-foot">
-          <div class="b-price">${owned ? '보유 중' : `◆ ${b.price.toLocaleString()}`}</div>
-          <button class="btn primary small b-buy" data-b="${b.id}" ${owned ? 'disabled' : ''}>${owned ? '구매 완료' : '번들 구매'}</button>
+          <div class="b-price">${owned ? '보유 중' : free ? '무료' : `◆ ${b.price.toLocaleString()}`}</div>
+          <button class="btn primary small b-buy" data-b="${b.id}" ${owned ? 'disabled' : ''}>${owned ? (free ? '받기 완료' : '구매 완료') : free ? '무료 받기' : '번들 구매'}</button>
         </div>
       </section>`;
     }).join('');
     list.querySelectorAll('.b-buy').forEach((btn) => (btn.onclick = () => this.buyBundle(btn.dataset.b, btn)));
-    list.querySelectorAll('.b-w').forEach((btn) => (btn.onclick = () => this.openShopPreview(btn.dataset.b, btn.dataset.w)));
+    list.querySelectorAll('.b-w').forEach((btn) => (btn.onclick = () => this.openShopPreview(btn.dataset.b, btn.dataset.w, btn.dataset.outfit)));
   }
 
   buyBundle(bid, btn) {
@@ -321,27 +336,31 @@ export class MenuUI {
     for (const wid of b.weapons) {
       const sid = skinId(b.id, wid);
       if (!save.ownedSkins.includes(sid)) save.ownedSkins.push(sid);
-      if (!save.skins[wid]) save.skins[wid] = sid; // auto-apply if the weapon had no skin
+      if (!save.skins[wid] || b.price === 0) save.skins[wid] = sid; // auto-apply if the weapon had no skin
+    }
+    if (b.outfit) {
+      if (!save.ownedOutfits.includes(b.outfit)) save.ownedOutfits.push(b.outfit);
+      save.outfit = b.outfit;
     }
     persist();
     audio.init();
     audio.kill();
-    this.toast(`${b.name} 번들 구매 완료! 무기 탭에서 스킨을 바꿀 수 있어요`);
+    this.toast(b.outfit ? `${b.name} 획득! 의상은 캐릭터 탭, 스킨은 무기 탭에서 바꿀 수 있어요` : `${b.name} 번들 구매 완료! 무기 탭에서 스킨을 바꿀 수 있어요`);
     this.refresh();
     this.renderShop();
   }
 
-  openShopPreview(bid, wid) {
+  openShopPreview(bid, wid, outfit) {
     const b = BUNDLES.find((x) => x.id === bid);
     const pop = $('shop-pop');
     pop.classList.remove('hidden');
     pop.className = 'shop-pop ' + bid;
-    $('shop-pop-title').textContent = `${b.name} · ${WEAPONS[wid].name}`;
+    $('shop-pop-title').textContent = `${b.name} · ${outfit ? '캐릭터 의상' : WEAPONS[wid].name}`;
     const slot = pop.querySelector('.preview-slot');
     slot.appendChild(this.preview.canvas);
     this.previewActive = true;
-    this.setSubject('weapon');
-    this.setPreviewWeapon(wid, skinId(bid, wid));
+    if (outfit) { this.setSubject('char'); this.setPreviewCharacter(getCharacter(save.character), outfit); }
+    else { this.setSubject('weapon'); this.setPreviewWeapon(wid, skinId(bid, wid)); }
     this.resizePreview();
   }
 
@@ -466,16 +485,16 @@ export class MenuUI {
     if (kind === 'char') { p.cam.position.set(0, 1.45, 6.6); p.cam.lookAt(0, 1.38, 0); }
   }
 
-  setPreviewCharacter(c) {
+  setPreviewCharacter(c, outfit = save.outfit) {
     const p = this.preview;
-    if (p.charId === c.id) return;
-    p.charId = c.id;
+    if (p.charId === c.id + '|' + outfit) return;
+    p.charId = c.id + '|' + outfit;
     p.emote?.stop();
     if (p.model) {
       p.actor.remove(p.model.group);
       p.model.group.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
     }
-    p.model = makeSoldier(c.color, c.accent, c.id);
+    p.model = makeSoldier(c.color, c.accent, c.id, outfit);
     p.model.gun.visible = false;
     p.model.group.rotation.y = Math.PI; // face the camera
     p.holder.rotation.y = -0.4;
@@ -523,6 +542,7 @@ export class MenuUI {
     if (p.subject === 'weapon') {
       if (!p.dragging && performance.now() - p.lastDrag > 1500) p.yaw += dt * 0.5;
       p.wHolder.rotation.set(p.pitch, p.yaw, 0, 'XYZ');
+      p.weapon?.skinAnim?.(performance.now() * 0.001);
       const d = 3.4 * p.zoom;
       p.cam.position.set(0, 1.3, d);
       p.cam.lookAt(0, 1.25, 0);
@@ -548,8 +568,9 @@ const KIND_ICON = { gun: '✦', melee: '⚔', bow: '➶', grenade: '●' };
 /* ---- character face portraits for the character cards (rendered once, cached) ---- */
 const portraitCache = {};
 let portraitR = null;
-export function getPortrait(c) {
-  if (portraitCache[c.id] !== undefined) return portraitCache[c.id];
+export function getPortrait(c, outfit = null) {
+  const key = c.id + (outfit ? '|' + outfit : '');
+  if (portraitCache[key] !== undefined) return portraitCache[key];
   try {
     const S = 128;
     if (!portraitR) {
@@ -567,22 +588,24 @@ export function getPortrait(c) {
       portraitR = { r, scene, cam };
     }
     const { r, scene, cam } = portraitR;
-    const m = makeSoldier(c.color, c.accent, c.id);
+    const m = makeSoldier(c.color, c.accent, c.id, outfit);
     m.gun.visible = false;
     m.group.rotation.y = Math.PI; // face the camera (+z)
     scene.add(m.group);
     m.group.updateMatrixWorld(true);
     const h = m.head.getWorldPosition(new THREE.Vector3());
-    h.y += 0.1;
+    h.y += outfit ? 0.2 : 0.1;
+    if (outfit) cam.fov = 34; else cam.fov = 26;
+    cam.updateProjectionMatrix();
     cam.position.set(h.x + 0.26, h.y + 0.05, h.z + 1.0);
     cam.lookAt(h.x, h.y - 0.04, h.z);
     r.render(scene, cam);
-    portraitCache[c.id] = r.domElement.toDataURL();
+    portraitCache[key] = r.domElement.toDataURL();
     scene.remove(m.group);
     m.group.traverse((o) => o.isMesh && o.geometry.dispose());
   } catch (e) {
     console.warn('portrait render failed', e);
-    portraitCache[c.id] = '';
+    portraitCache[key] = '';
   }
-  return portraitCache[c.id];
+  return portraitCache[key];
 }

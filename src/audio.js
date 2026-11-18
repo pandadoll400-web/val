@@ -57,6 +57,7 @@ class Sfx {
     if (!this.ok) return;
     const t = this.now;
     const v = 1 / (1 + dist * 0.06);
+    if (kind === 'flamer') { this._noise(t, 0.16, { type: 'bandpass', freq: 700, q: 0.7, vol: 0.32 * v, sweepTo: 1100, attack: 0.02 }); return; }
     const P = {
       pistol:  { lp: 4200, dur: 0.14, thump: 0.5, vol: 0.55 },
       rifle:   { lp: 3200, dur: 0.16, thump: 0.6, vol: 0.5 },

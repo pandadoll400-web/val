@@ -8,7 +8,7 @@ const cyl = (r1, r2, h, s = 12) => new THREE.CylinderGeometry(r1, r2, h, s);
  * style: 'rookie' | 'frost' | 'blaze' | 'shadow' | 'volt' | 'enemy'
  * joints: hips, torso, neck, shL, elL, shR, elR, legL, knL, legR, knR (+ handL/handR anchors)
  */
-export function makeSoldier(color = '#4f7fa8', accent = '#9be8ff', style = 'enemy') {
+export function makeSoldier(color = '#4f7fa8', accent = '#9be8ff', style = 'enemy', outfit = null) {
   const g = new THREE.Group();
   const body = new THREE.MeshStandardMaterial({ color, roughness: 0.62, metalness: 0.08 });
   const bodyDark = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).multiplyScalar(0.55), roughness: 0.7 });
@@ -266,6 +266,40 @@ export function makeSoldier(color = '#4f7fa8', accent = '#9be8ff', style = 'enem
     helmet();
     hadd(box(0.28, 0.09, 0.03), glow, 0, 0.15, -0.15);                     // visor
     hadd(box(0.2, 0.08, 0.02), dark, 0, 0.06, -0.14);
+  }
+
+  /* ---- outfits (bundle character skins) ---- */
+  if (outfit === 'xmas') {
+    body.color.set('#c8202a'); bodyDark.color.set('#7c1018');
+    const fur = new THREE.MeshStandardMaterial({ color: '#f7f7f2', roughness: 0.95 });
+    const belt = new THREE.MeshStandardMaterial({ color: '#141414', roughness: 0.5 });
+    const gold = new THREE.MeshStandardMaterial({ color: '#ffd24a', metalness: 0.9, roughness: 0.25 });
+    const scarf = new THREE.MeshStandardMaterial({ color: '#1f8a3a', roughness: 0.8 });
+    mats.push(fur, belt, gold, scarf);
+    add(hips, box(0.47, 0.07, 0.31), fur, 0, -0.09, 0);                      // coat hem
+    add(hips, box(0.455, 0.075, 0.295), belt, 0, 0.07, 0);                   // black belt
+    add(hips, box(0.1, 0.08, 0.02), gold, 0, 0.07, -0.155);                  // buckle
+    add(hips, box(0.06, 0.04, 0.025), belt, 0, 0.07, -0.16);
+    add(torso, box(0.08, 0.52, 0.03), fur, 0, 0.38, -0.225);                 // front fur strip
+    for (let i = 0; i < 3; i++) add(torso, box(0.035, 0.035, 0.02), belt, 0, 0.5 - i * 0.12, -0.245); // buttons
+    add(torso, box(0.38, 0.09, 0.36), scarf, 0, 0.62, 0);                    // scarf
+    add(torso, box(0.1, 0.3, 0.04), scarf, -0.11, 0.48, -0.2, 'body', -0.15, 0, -0.1);
+    for (const s of [L, R]) {
+      add(s.el, box(0.15, 0.065, 0.155), fur, 0, -0.245, 0);                // cuffs
+      add(s.sh, box(0.19, 0.06, 0.21), fur, 0, 0.09, 0);
+    }
+    for (const k of knees) add(k, box(0.2, 0.06, 0.22), fur, 0, -0.33, 0);   // boot fur
+    // santa hat
+    const hat = new THREE.Group();
+    hat.position.set(0, 0.36, 0.02);
+    hat.rotation.x = 0.25;
+    head.add(hat);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.08, 16), fur);
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.175, 0.36, 16), body);
+    cone.position.set(0, 0.2, 0.03); cone.rotation.x = 0.35;
+    const pom = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), fur);
+    pom.position.set(0, 0.36, 0.11);
+    for (const m of [brim, cone, pom]) { m.castShadow = true; m.userData.part = 'head'; hitParts.push(m); headParts.push(m); hat.add(m); }
   }
 
   /* ---- rifle (enemy / default hold) ---- */

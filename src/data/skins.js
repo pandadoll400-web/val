@@ -59,6 +59,14 @@ function textures() {
         g.fillStyle = g.strokeStyle; g.beginPath(); g.arc(x, y, 3, 0, Math.PI * 2); g.fill();
       }
     }, 2),
+    // red / white candy stripes with a thin green line
+    candy: tex((g, S) => {
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, S, S);
+      g.fillStyle = '#d81e2a';
+      for (let i = -S; i < S * 2; i += 64) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 28, 0); g.lineTo(i + 28 - S, S); g.lineTo(i - S, S); g.fill(); }
+      g.fillStyle = '#2aa04a';
+      for (let i = -S + 38; i < S * 2; i += 64) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 8, 0); g.lineTo(i + 8 - S, S); g.lineTo(i - S, S); g.fill(); }
+    }, 3),
   };
   return T;
 }
@@ -84,6 +92,12 @@ export const BUNDLES = [
     tagline: '2099년 네오서울 뒷골목의 네온사인',
     desc: '무광 화이트 위로 핫핑크·시안 회로가 흐르는 미래 도장. 처치하면 그 자리에 글리치 홀로그램 큐브가 떠오릅니다.',
     killFx: '글리치 홀로그램', weapons: ['smg', 'bow', 'rifle'],
+  },
+  {
+    id: 'xmas', name: '🎄 홀리 나이트', rarity: 'infinity', price: 0, hackOnly: true, outfit: 'xmas',
+    tagline: '눈 내리는 협곡의 크리스마스 이브',
+    desc: '산타 의상(빨간 코트·흰 털·산타 모자·목도리)과 사탕지팡이 총열, 리본, 장식 방울이 달린 무기 4종. 처치하면 그 자리에서 선물 상자가 터지며 눈이 내립니다.',
+    killFx: '선물 상자 눈보라', weapons: ['rifle', 'pistol', 'knife', 'flamer'],
   },
 ];
 
@@ -118,6 +132,17 @@ export function skinMaterials(bundleId) {
       accent: M({ color: '#f0c060', metalness: 1, roughness: 0.22 }),
       steel: M({ color: '#f2c45a', metalness: 1, roughness: 0.2 }),
       blade: M({ color: '#1a1414', metalness: 0.9, roughness: 0.3, emissiveMap: t.lava, emissive: '#ffffff', emissiveIntensity: 1.4 }),
+    };
+  } else if (bundleId === 'xmas') {
+    const candy = t.candy;
+    m = {
+      metal: M({ color: '#c0161f', metalness: 0.5, roughness: 0.3 }),
+      metal2: M({ color: '#1f7a36', metalness: 0.4, roughness: 0.4 }),
+      poly: M({ color: '#174a26', roughness: 0.6 }),
+      body: M({ color: '#ffffff', map: candy, roughness: 0.35 }),
+      accent: M({ color: '#ffd24a', metalness: 0.9, roughness: 0.25, emissive: '#5a3a00', emissiveIntensity: 0.3 }),
+      steel: M({ color: '#ffe08a', metalness: 1, roughness: 0.2 }),
+      blade: M({ color: '#ffffff', map: candy, metalness: 0.3, roughness: 0.25 }),
     };
   } else {
     m = {
