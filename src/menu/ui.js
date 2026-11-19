@@ -11,6 +11,8 @@ import { audio } from '../audio.js';
 import { currentUser } from '../net/auth.js';
 
 const isHack = () => (currentUser()?.nick || '').toLowerCase() === 'hack';
+/** Christmas skins / bundle go on sale December 1st (shown as a preview until then) */
+const xmasOpen = () => { const d = new Date(); return d.getFullYear() > 2026 || (d.getFullYear() === 2026 && d.getMonth() === 11); };
 const hasCharSkin = () => save.ownedOutfits.some((o) => getCharSkin(o) && getCharSkin(o).char !== 'bloom');
 
 const $ = (id) => document.getElementById(id);
@@ -113,7 +115,7 @@ export class MenuUI {
     const wn = (id) => `<b style="color:${RARITY[WEAPONS[id].rarity].color}">${WEAPONS[id].name}</b>`;
     $('loadout-chip').innerHTML = `캐릭터 <b>${c.name}</b> <span style="color:${RARITY[c.rarity].color}">(${RARITY[c.rarity].name})</span>
       · 무기 ${wn(lo.primary)} / ${wn(lo.secondary)} / ${wn(lo.sidearm)}
-      <div class="ver">v1.9 · 빌드 ${__BUILD__}</div>`;
+      <div class="ver">v1.9.1 · 빌드 ${__BUILD__}</div>`;
   }
 
   /* ---------- characters ---------- */
@@ -137,7 +139,7 @@ export class MenuUI {
     const r = RARITY[c.rarity];
     const owned = save.owned.includes(c.id);
     const selected = save.character === c.id;
-    const mySkins = CHAR_SKINS.filter((k) => k.char === c.id && save.ownedOutfits.includes(k.id));
+    const mySkins = CHAR_SKINS.filter((k) => k.char === c.id);
     $('char-detail').innerHTML = `
       <div class="d-name">${c.name}<span class="rbadge" style="background:${r.color}">${r.name}</span></div>
       <div class="d-title">${c.title}</div>
@@ -154,11 +156,17 @@ export class MenuUI {
       ${owned ? '' : '<div class="hint">적 처치 1명당 ◆20, 승리 시 ◆300을 얻습니다.</div>'}
       ${mySkins.length ? `<div class="skin-row outfit-row"><span>스킨</span>
         <button class="skin-opt ${!outfitFor(c.id) ? 'on' : ''}" data-o="">기본</button>
-        ${mySkins.map((k) => `<button class="skin-opt xmas ${outfitFor(c.id) === k.id ? 'on' : ''}" data-o="${k.id}">🎄 ${k.name}</button>`).join('')}</div>` : ''}`;
+        ${mySkins.map((k) => save.ownedOutfits.includes(k.id)
+          ? `<button class="skin-opt xmas ${outfitFor(c.id) === k.id ? 'on' : ''}" data-o="${k.id}">🎄 ${k.name}</button>`
+          : `<button class="skin-opt xmas locked" data-peek="${k.id}" title="눌러서 미리보기">🔒 🎄 ${k.name} · 12월 출시</button>`).join('')}</div>` : ''}`;
     $('char-detail').querySelectorAll('[data-o]').forEach((b) => (b.onclick = () => {
       if (b.dataset.o) save.outfits[c.id] = b.dataset.o; else delete save.outfits[c.id];
       persist();
       this.renderChars();
+    }));
+    $('char-detail').querySelectorAll('[data-peek]').forEach((b) => (b.onclick = () => {
+      this.setPreviewCharacter(c, b.dataset.peek);
+      this.toast(`🎄 ${getCharSkin(b.dataset.peek).name} — 12월에 출시돼요! (미리보기)`);
     }));
     $('char-emote').onclick = () => this.playEmote();
     $('char-action').onclick = (e) => {
@@ -303,12 +311,14 @@ export class MenuUI {
   /* ---------- shop (vertical scrolling bundle list) ---------- */
   renderShop() {
     const list = $('shop-list');
-    list.innerHTML = BUNDLES.filter((b) => !b.hackOnly || isHack()).map((b) => {
+    const order = [...BUNDLES.filter((b) => b.soon), ...BUNDLES.filter((b) => !b.soon)];
+    list.innerHTML = order.map((b) => {
       const owned = b.weapons.every((wid) => save.ownedSkins.includes(skinId(b.id, wid))) && (!b.randomCharSkin || hasCharSkin());
       const free = !b.price;
+      const soon = b.soon && !xmasOpen() && !owned;
       const r = RARITY[b.rarity];
       return `<section class="bundle ${b.id}">
-        <div class="b-ribbon" style="background:${r.color}">${r.name} 번들</div>
+        <div class="b-ribbon" style="background:${r.color}">${r.name} 번들</div>${soon ? '<div class="b-soon">12월에 출시!</div>' : ''}
         <div class="b-title">${b.name}</div>
         <div class="b-tag">${b.tagline}</div>
         <div class="b-weapons">
@@ -320,8 +330,8 @@ export class MenuUI {
         <div class="b-desc">${b.desc}</div>
         <div class="b-fx">✦ 처치 이펙트: <b>${b.killFx}</b></div>
         <div class="b-foot">
-          <div class="b-price">${owned ? '보유 중' : free ? '무료' : `◆ ${b.price.toLocaleString()}`}</div>
-          <button class="btn primary small b-buy" data-b="${b.id}" ${owned ? 'disabled' : ''}>${owned ? (free ? '받기 완료' : '구매 완료') : free ? '무료 받기' : '번들 구매'}</button>
+          <div class="b-price">${soon ? '🎄 12월에 출시!' : owned ? '보유 중' : free ? '무료' : `◆ ${b.price.toLocaleString()}`}</div>
+          <button class="btn primary small b-buy" data-b="${b.id}" ${owned || soon ? 'disabled' : ''}>${soon ? '출시 예정' : owned ? (free ? '받기 완료' : '구매 완료') : free ? '무료 받기' : '번들 구매'}</button>
         </div>
       </section>`;
     }).join('');
@@ -331,6 +341,7 @@ export class MenuUI {
 
   buyBundle(bid, btn) {
     const b = BUNDLES.find((x) => x.id === bid);
+    if (b.soon && !xmasOpen()) { this.toast('🎄 12월에 출시돼요!'); return; }
     if (save.coins < b.price) {
       this.shake(btn);
       this.toast(`코인이 부족합니다 (◆ ${(b.price - save.coins).toLocaleString()} 더 필요)`);

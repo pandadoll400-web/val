@@ -35,6 +35,10 @@ const add = (parent, geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
   parent.add(m);
   return m;
 };
+/** parts that sit in the line of sight: hidden while aiming down sights */
+let AIM = [];
+const aim = (o) => { AIM.push(o); return o; };
+const addA = (...a) => aim(add(...a));
 
 /** where to put things on this gun */
 function measure(model) {
@@ -85,7 +89,7 @@ function aurora(model, m) {
   // crystal ridge on top
   alongTop(m, 5).forEach((p, i) => {
     const h = 0.022 + (i % 2 ? 0.006 : 0.014);
-    add(g, spike(h), ice, p.x, p.y + h * s * 0.5, p.z, -0.35 + Math.random() * 0.2, 0, (Math.random() - 0.5) * 0.4);
+    addA(g, spike(h), ice, p.x, p.y + h * s * 0.5, p.z, -0.35 + Math.random() * 0.2, 0, (Math.random() - 0.5) * 0.4);
   });
   // side clusters
   for (let i = 0; i < 2; i++) {
@@ -96,13 +100,13 @@ function aurora(model, m) {
   // crystal crown around the muzzle
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2, r = 0.022 * s;
-    const c = add(g, spike(0.022), ice, m.muzzle.x + Math.cos(a) * r, m.muzzle.y + Math.sin(a) * r, m.muzzle.z + 0.01);
+    const c = addA(g, spike(0.022), ice, m.muzzle.x + Math.cos(a) * r, m.muzzle.y + Math.sin(a) * r, m.muzzle.z + 0.01);
     c.rotation.set(-Math.PI / 2 + Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5);
   }
   // three light shards orbiting the barrel
   const orbit = new THREE.Group();
   orbit.position.set(m.muzzle.x, m.muzzle.y, m.muzzle.z + m.size.z * 0.3);
-  g.add(orbit);
+  g.add(aim(orbit));
   const glow = M('auroraGlow', { color: '#ffffff', emissive: '#7af7ff', emissiveIntensity: 2.4 });
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2, r = 0.06 * s;
@@ -127,15 +131,15 @@ function inferno(model, m) {
     }
   }
   // golden spine
-  alongTop(m, 6, 0.1, 0.7).forEach((p, i) => add(g, new THREE.ConeGeometry(0.008 * s, (0.03 - i * 0.002) * s, 4), gold, p.x, p.y + 0.012 * s, p.z, -0.6, 0, 0));
+  alongTop(m, 6, 0.1, 0.7).forEach((p, i) => addA(g, new THREE.ConeGeometry(0.008 * s, (0.03 - i * 0.002) * s, 4), gold, p.x, p.y + 0.012 * s, p.z, -0.6, 0, 0));
   // horned dragon jaw at the muzzle
   for (const sx of [-1, 1]) {
-    add(g, new THREE.ConeGeometry(0.008 * s, 0.07 * s, 6), gold, m.muzzle.x + sx * 0.02 * s, m.muzzle.y + 0.025 * s, m.muzzle.z + 0.04 * s, 1.1, 0, sx * -0.35);
+    addA(g, new THREE.ConeGeometry(0.008 * s, 0.07 * s, 6), gold, m.muzzle.x + sx * 0.02 * s, m.muzzle.y + 0.025 * s, m.muzzle.z + 0.04 * s, 1.1, 0, sx * -0.35);
   }
-  add(g, new THREE.ConeGeometry(0.02 * s, 0.06 * s, 4).rotateX(-Math.PI / 2), scaleMat, m.muzzle.x, m.muzzle.y - 0.022 * s, m.muzzle.z + 0.02 * s);
-  for (const sx of [-1, 1]) add(g, new THREE.SphereGeometry(0.004 * s, 6, 4), M('dragonEye', { color: '#ffcc33', emissive: '#ff8800', emissiveIntensity: 3 }), m.muzzle.x + sx * 0.016 * s, m.muzzle.y + 0.012 * s, m.muzzle.z + 0.03 * s);
+  addA(g, new THREE.ConeGeometry(0.02 * s, 0.06 * s, 4).rotateX(-Math.PI / 2), scaleMat, m.muzzle.x, m.muzzle.y - 0.022 * s, m.muzzle.z + 0.02 * s);
+  for (const sx of [-1, 1]) addA(g, new THREE.SphereGeometry(0.004 * s, 6, 4), M('dragonEye', { color: '#ffcc33', emissive: '#ff8800', emissiveIntensity: 3 }), m.muzzle.x + sx * 0.016 * s, m.muzzle.y + 0.012 * s, m.muzzle.z + 0.03 * s);
   // ember at the muzzle
-  const ember = add(g, new THREE.SphereGeometry(0.007 * s, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff9a2a', transparent: true }), m.muzzle.x, m.muzzle.y, m.muzzle.z - 0.01);
+  const ember = addA(g, new THREE.SphereGeometry(0.007 * s, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff9a2a', transparent: true }), m.muzzle.x, m.muzzle.y, m.muzzle.z - 0.01);
   return (t) => { const f = 0.7 + Math.sin(t * 17) * 0.15 + Math.sin(t * 7.3) * 0.15; ember.scale.setScalar(f); ember.material.opacity = 0.6 + f * 0.3; };
 }
 
@@ -147,16 +151,16 @@ function cyber(model, m) {
   const top = alongTop(m, 1, 0.45, 0.45)[0] || alongTop(m, 1, 0.3, 0.3)[0] || new THREE.Vector3(m.cx, m.box.max.y, zAt(m, 0.45));
   const holo = new THREE.Group();
   holo.position.set(top.x, top.y + 0.03 * s, top.z);
-  g.add(holo);
+  g.add(aim(holo));
   const pane = add(holo, new THREE.PlaneGeometry(0.05 * s, 0.032 * s), new THREE.MeshBasicMaterial({ color: '#3ff6ff', transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false }), 0, 0, 0);
   for (const [w, h, x, y] of [[0.052, 0.002, 0, 0.016], [0.052, 0.002, 0, -0.016], [0.002, 0.034, 0.026, 0], [0.002, 0.034, -0.026, 0]]) add(holo, new THREE.BoxGeometry(w * s, h * s, 0.002), neonC, x * s, y * s, 0);
   add(holo, new THREE.TorusGeometry(0.006 * s, 0.0007 * s, 4, 16), neonP, 0, 0, 0.001);
-  for (const sx of [-1, 1]) add(g, new THREE.BoxGeometry(0.003 * s, 0.03 * s, 0.004 * s), M('cyberPost', { color: '#1b1d24' }), top.x + sx * 0.024 * s, top.y + 0.012 * s, top.z);
+  for (const sx of [-1, 1]) addA(g, new THREE.BoxGeometry(0.003 * s, 0.03 * s, 0.004 * s), M('cyberPost', { color: '#1b1d24' }), top.x + sx * 0.024 * s, top.y + 0.012 * s, top.z);
   // neon fins
   for (let i = 0; i < 2; i++) {
     const z = zAt(m, 0.55 + i * 0.12), c = surf(m, z);
     if (!c) continue;
-    for (const sx of [-1, 1]) add(g, new THREE.BoxGeometry(0.003 * s, 0.026 * s, 0.045 * s), i ? neonC : neonP, (sx > 0 ? c.right : c.left) + sx * 0.008 * s, c.top, z, 0.5, 0, sx * 0.6);
+    for (const sx of [-1, 1]) addA(g, new THREE.BoxGeometry(0.003 * s, 0.026 * s, 0.045 * s), i ? neonC : neonP, (sx > 0 ? c.right : c.left) + sx * 0.008 * s, c.top, z, 0.5, 0, sx * 0.6);
   }
   // blinking LED strip on both sides
   const led = new THREE.MeshStandardMaterial({ color: '#3ff6ff', emissive: '#3ff6ff', emissiveIntensity: 2 });
@@ -183,19 +187,19 @@ function xmas(model, m) {
   if (!m.melee) {
     // candy-cane sleeve over the front of the barrel
     const len = m.size.z * 0.28;
-    add(g, new THREE.CylinderGeometry(0.014 * s, 0.014 * s, len, 14).rotateX(Math.PI / 2), candyMat, m.muzzle.x, m.muzzle.y, m.muzzle.z + len / 2 + 0.005);
+    addA(g, new THREE.CylinderGeometry(0.014 * s, 0.014 * s, len, 14).rotateX(Math.PI / 2), candyMat, m.muzzle.x, m.muzzle.y, m.muzzle.z + len / 2 + 0.005);
     // holly at the muzzle
     for (let i = 0; i < 3; i++) {
       const a = -0.6 + i * 0.6;
-      add(g, new THREE.SphereGeometry(1, 6, 4).scale(0.008 * s, 0.002 * s, 0.018 * s), green, m.muzzle.x + Math.sin(a) * 0.02 * s, m.muzzle.y + 0.018 * s, m.muzzle.z + 0.03 * s, 0.3, a, 0);
+      addA(g, new THREE.SphereGeometry(1, 6, 4).scale(0.008 * s, 0.002 * s, 0.018 * s), green, m.muzzle.x + Math.sin(a) * 0.02 * s, m.muzzle.y + 0.018 * s, m.muzzle.z + 0.03 * s, 0.3, a, 0);
     }
-    for (let i = 0; i < 3; i++) add(g, new THREE.SphereGeometry(0.0055 * s, 8, 6), berry, m.muzzle.x + (i - 1) * 0.006 * s, m.muzzle.y + 0.022 * s, m.muzzle.z + 0.022 * s);
+    for (let i = 0; i < 3; i++) addA(g, new THREE.SphereGeometry(0.0055 * s, 8, 6), berry, m.muzzle.x + (i - 1) * 0.006 * s, m.muzzle.y + 0.022 * s, m.muzzle.z + 0.022 * s);
   } else {
     // candy stripes around the handle end of melee weapons + holly at the guard
     add(g, new THREE.CylinderGeometry(0.014 * s, 0.014 * s, m.size.z * 0.25, 12).rotateX(Math.PI / 2), candyMat, m.cx, (m.box.min.y + m.box.max.y) / 2, m.box.max.z - m.size.z * 0.15);
   }
   // snow piled along the top
-  alongTop(m, 4, 0.2, 0.7).forEach((p, i) => add(g, new THREE.SphereGeometry(1, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale((0.012 - (i % 2) * 0.003) * s, 0.006 * s, 0.018 * s), snow, p.x, p.y, p.z));
+  alongTop(m, 4, 0.2, 0.7).forEach((p, i) => addA(g, new THREE.SphereGeometry(1, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale((0.012 - (i % 2) * 0.003) * s, 0.006 * s, 0.018 * s), snow, p.x, p.y, p.z));
   // ribbon bow on the left side
   const bz = zAt(m, 0.3), bc = surf(m, bz) || { y: (m.box.min.y + m.box.max.y) / 2, left: m.cx - m.size.x * 0.5 };
   const by = bc.y, bx = bc.left - 0.004;
@@ -228,7 +232,10 @@ export function addSkinParts(bundleId, weaponId, model) {
   const g = model.group, pos = g.position.clone(), rot = g.rotation.clone(), scl = g.scale.clone();
   g.position.set(0, 0, 0); g.rotation.set(0, 0, 0); g.scale.set(1, 1, 1);
   const m = measure(model);
+  AIM = [];
   const anim = fn(model, m);
+  model.aimParts = AIM;
+  AIM = [];
   g.position.copy(pos); g.rotation.copy(rot); g.scale.copy(scl);
   m.box = null;
   model.group.traverse((o) => { if (o.userData.skinPart) o.castShadow = false; });

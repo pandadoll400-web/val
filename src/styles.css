@@ -450,6 +450,8 @@ table.kda .kp small { display: block; font-size: 11px; color: rgba(255,255,255,.
 .bundle.xmas .b-weapons { grid-template-columns: repeat(3, 1fr); }
 .b-w.outfit img { height: 72px; }
 .b-ribbon { display: inline-block; font-size: 11.5px; font-weight: 900; color: #0b1220; padding: 3px 10px; border-radius: 999px; margin-bottom: 10px; }
+.b-soon { display: inline-block; margin-left: 8px; font-size: 11.5px; font-weight: 900; color: #fff; padding: 3px 10px; border-radius: 999px; background: linear-gradient(90deg,#d81e2a,#1f8a3a); animation: bsoon 1.4s ease-in-out infinite; }
+@keyframes bsoon { 50% { transform: scale(1.08); } }
 .b-title { font-size: 28px; font-weight: 900; letter-spacing: -.01em; }
 .bundle.aurora .b-title { background: linear-gradient(90deg, #7dffe0, #8fb8ff, #c9a2ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .bundle.inferno .b-title { color: #ffcf6a; text-shadow: 0 0 18px rgba(255,100,20,.7); }

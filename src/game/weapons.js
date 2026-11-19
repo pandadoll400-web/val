@@ -1274,6 +1274,7 @@ export class WeaponSystem {
 
     // ---- root pose ----
     const e = smooth(this.adsT);
+    if (m.aimParts) { const show = this.adsT < 0.15; for (const o of m.aimParts) o.visible = show; } // skin parts never block the sights
     const pos = new THREE.Vector3().copy(m.hip).lerp(m.dual ? m.hip : new THREE.Vector3(0, -m.sightY * VM_SCALE, m.adsZ * 0.85), e);
     const bobA = p.bobAmt * (1 - e * 0.85);
     pos.x += Math.cos(p.bobPhase) * 0.011 * bobA + this.sway.x * (1 - e * 0.8);
