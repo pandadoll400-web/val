@@ -9,10 +9,14 @@ import { EmotePlayer, speak } from './emotes.js';
 import { BUNDLES, skinsForWeapon, skinId } from '../data/skins.js';
 import { audio } from '../audio.js';
 import { currentUser } from '../net/auth.js';
+import { dealsFor, dealSecondsLeft } from '../data/deals.js';
 
 const isHack = () => (currentUser()?.nick || '').toLowerCase() === 'hack';
 /** Christmas skins / bundle go on sale December 1st (shown as a preview until then) */
 const xmasOpen = () => { const d = new Date(); return d.getFullYear() > 2026 || (d.getFullYear() === 2026 && d.getMonth() === 11); };
+/** today's deal for a weapon (or null) and the price it sells for right now */
+const dealOf = (wid) => (isHack() ? dealsFor(save.ownedWeapons).find((d) => d.id === wid) || null : null);
+const priceOf = (wid) => dealOf(wid)?.sale ?? WEAPONS[wid].price;
 const hasCharSkin = () => save.ownedOutfits.some((o) => getCharSkin(o) && getCharSkin(o).char !== 'bloom');
 
 const $ = (id) => document.getElementById(id);
@@ -115,7 +119,7 @@ export class MenuUI {
     const wn = (id) => `<b style="color:${RARITY[WEAPONS[id].rarity].color}">${WEAPONS[id].name}</b>`;
     $('loadout-chip').innerHTML = `캐릭터 <b>${c.name}</b> <span style="color:${RARITY[c.rarity].color}">(${RARITY[c.rarity].name})</span>
       · 무기 ${wn(lo.primary)} / ${wn(lo.secondary)} / ${wn(lo.sidearm)}
-      <div class="ver">v1.9.1 · 빌드 ${__BUILD__}</div>`;
+      <div class="ver">v2.0 · 빌드 ${__BUILD__}</div>`;
   }
 
   /* ---------- characters ---------- */
@@ -129,12 +133,16 @@ export class MenuUI {
       el.className = 'ccard' + (c.id === this.viewChar ? ' active' : '') + (owned ? '' : ' locked') + (c.rarity === 'infinity' ? ' infinity' : '');
       el.style.setProperty('--rc', r.color);
       el.innerHTML = `
-        <div class="swatch face" style="background:linear-gradient(135deg, ${c.color}, ${c.accent})">${(() => { const f = getPortrait(c); return f ? `<img src="${f}" alt="${c.name}">` : c.name[0]; })()}</div>
+        <div class="swatch face" title="눌러서 스킨 보기" style="background:linear-gradient(135deg, ${c.color}, ${c.accent})">${(() => { const f = getPortrait(c, outfitFor(c.id)); return f ? `<img src="${f}" alt="${c.name}">` : c.name[0]; })()}${isHack() ? '<span class="face-tag">👕</span>' : ''}</div>
         <div><div class="cname">${c.name}</div><div class="csub">${r.name}</div></div>
         <div class="cright">${save.character === c.id ? '<span class="equipped">선택됨</span>' : owned ? '보유' : `🔒 ◆ ${c.price.toLocaleString()}`}</div>`;
-      el.onclick = () => { this.viewChar = c.id; this.renderChars(); this.playEmote(); };
+      el.onclick = () => { this.viewChar = c.id; this.skinView = null; this.renderChars(); this.playEmote(); };
+      // the portrait opens that character's skins
+      if (isHack()) el.querySelector('.swatch.face').onclick = (e) => { e.stopPropagation(); this.viewChar = c.id; this.skinView = c.id; this.renderChars(); };
       list.appendChild(el);
     }
+    if (isHack() && this.skinView === this.viewChar) { this.renderCharSkins(getCharacter(this.viewChar)); return; }
+    this.skinView = null;
     const c = getCharacter(this.viewChar);
     const r = RARITY[c.rarity];
     const owned = save.owned.includes(c.id);
@@ -154,11 +162,11 @@ export class MenuUI {
         ${selected ? '선택됨' : owned ? '이 캐릭터 선택' : `구매하기 ◆ ${c.price.toLocaleString()}`}
       </button>
       ${owned ? '' : '<div class="hint">적 처치 1명당 ◆20, 승리 시 ◆300을 얻습니다.</div>'}
-      ${mySkins.length ? `<div class="skin-row outfit-row"><span>스킨</span>
+      ${!mySkins.length ? '' : isHack() ? '<div class="hint">👕 왼쪽 목록의 캐릭터 사진을 누르면 스킨을 볼 수 있어요</div>' : `<div class="skin-row outfit-row"><span>스킨</span>
         <button class="skin-opt ${!outfitFor(c.id) ? 'on' : ''}" data-o="">기본</button>
         ${mySkins.map((k) => save.ownedOutfits.includes(k.id)
           ? `<button class="skin-opt xmas ${outfitFor(c.id) === k.id ? 'on' : ''}" data-o="${k.id}">🎄 ${k.name}</button>`
-          : `<button class="skin-opt xmas locked" data-peek="${k.id}" title="눌러서 미리보기">🔒 🎄 ${k.name} · 12월 출시</button>`).join('')}</div>` : ''}`;
+          : `<button class="skin-opt xmas locked" data-peek="${k.id}" title="눌러서 미리보기">🔒 🎄 ${k.name} · 12월 출시</button>`).join('')}</div>`}`;
     $('char-detail').querySelectorAll('[data-o]').forEach((b) => (b.onclick = () => {
       if (b.dataset.o) save.outfits[c.id] = b.dataset.o; else delete save.outfits[c.id];
       persist();
@@ -186,6 +194,45 @@ export class MenuUI {
       this.renderChars();
     };
     this.setPreviewCharacter(c);
+  }
+
+  /** skin window for one character (opened from its portrait): default + its skins, click to preview, equip if owned */
+  renderCharSkins(c) {
+    const owned = save.owned.includes(c.id);
+    const cur = outfitFor(c.id);
+    const peek = this.skinPeek && (this.skinPeek === 'default' || getCharSkin(this.skinPeek)?.char === c.id) ? this.skinPeek : (cur || 'default');
+    const opts = [{ id: 'default', name: '기본', have: true }, ...CHAR_SKINS.filter((k) => k.char === c.id).map((k) => ({ id: k.id, name: k.name, have: save.ownedOutfits.includes(k.id), xmas: true }))];
+    $('char-detail').innerHTML = `
+      <div class="d-name">${c.name} <span class="d-sub">· 스킨</span><button id="skin-back" class="btn ghost small skin-back">✕ 닫기</button></div>
+      <div class="skin-grid">
+        ${opts.map((o) => {
+          const on = (o.id === 'default' ? !cur : cur === o.id);
+          const face = getPortrait(c, o.id === 'default' ? null : o.id);
+          return `<button class="skin-card ${o.xmas ? 'xmas' : ''} ${peek === o.id ? 'peek' : ''} ${on ? 'on' : ''} ${o.have ? '' : 'locked'}" data-k="${o.id}">
+            <div class="sk-face" style="background:linear-gradient(135deg, ${c.color}, ${c.accent})">${face ? `<img src="${face}" alt="">` : ''}</div>
+            <div class="sk-name">${o.xmas ? '🎄 ' : ''}${o.name}</div>
+            <div class="sk-state">${on ? '장착 중' : o.have ? '보유' : '🔒 12월 출시'}</div></button>`;
+        }).join('')}
+      </div>
+      ${(() => {
+        const o = opts.find((x) => x.id === peek);
+        const on = peek === 'default' ? !cur : cur === peek;
+        if (!o.have) return '<button class="btn primary small" disabled>🎄 12월에 출시돼요</button>';
+        if (!owned) return '<button class="btn primary small" disabled>캐릭터를 먼저 구매하세요</button><div class="hint">스킨은 캐릭터를 가진 뒤 장착할 수 있어요</div>';
+        return `<button id="skin-equip" class="btn primary small" ${on ? 'disabled' : ''}>${on ? '장착 중' : `${o.name} 장착`}</button>`;
+      })()}`;
+    $('skin-back').onclick = () => { this.skinView = null; this.skinPeek = null; this.renderChars(); };
+    $('char-detail').querySelectorAll('.skin-card').forEach((b) => (b.onclick = () => { this.skinPeek = b.dataset.k; this.renderChars(); }));
+    const eq = $('skin-equip');
+    if (eq) eq.onclick = () => {
+      if (peek === 'default') delete save.outfits[c.id]; else save.outfits[c.id] = peek;
+      persist();
+      audio.init(); audio.magIn();
+      this.toast(`${c.name}: ${peek === 'default' ? '기본' : getCharSkin(peek).name} 장착`);
+      this.refresh();
+      this.renderChars();
+    };
+    this.setPreviewCharacter(c, peek === 'default' ? null : peek);
   }
 
   playEmote() {
@@ -232,7 +279,7 @@ export class MenuUI {
       el.innerHTML = `
         <div class="swatch wicon" style="background:linear-gradient(135deg, #1c2638, ${r.color}55)">${icons[id] ? `<img src="${icons[id]}" alt="">` : KIND_ICON[w.kind]}</div>
         <div><div class="cname">${w.name}</div><div class="csub">${r.name}</div></div>
-        <div class="cright">${save.loadout[w.cat] === id ? '<span class="equipped">장착됨</span>' : owned ? '보유' : w.price ? `🔒 ◆ ${w.price.toLocaleString()}` : '무료'}</div>`;
+        <div class="cright">${save.loadout[w.cat] === id ? '<span class="equipped">장착됨</span>' : owned ? '보유' : w.price ? `🔒 ◆ ${priceOf(id).toLocaleString()}${dealOf(id) ? ` <span class="deal-tag">-${dealOf(id).off}%</span>` : ''}` : '무료'}</div>`;
       el.onclick = () => { this.viewWeapon = id; this.renderWeapons(); };
       list.appendChild(el);
     }
@@ -257,7 +304,7 @@ export class MenuUI {
       </div>
       ${this.skinRow(w)}
       <button id="weapon-action" class="btn primary small" ${equipped ? 'disabled' : ''}>
-        ${equipped ? `${catName}에 장착됨` : owned ? `${catName}에 장착` : `구매하기 ◆ ${w.price.toLocaleString()}`}
+        ${equipped ? `${catName}에 장착됨` : owned ? `${catName}에 장착` : `구매하기 ◆ ${priceOf(w.id).toLocaleString()}${dealOf(w.id) ? ` (🔥 -${dealOf(w.id).off}%)` : ''}`}
       </button>
       ${owned ? '' : `<div class="hint">구매 후 [장착]을 누르면 ${catName} 슬롯에 들어갑니다.</div>`}`;
     $('weapon-action').onclick = (e) => {
@@ -266,13 +313,13 @@ export class MenuUI {
         audio.init();
         audio.magIn();
         this.toast(`${catName}: ${w.name} 장착 완료`);
-      } else if (save.coins >= w.price) {
-        save.coins -= w.price;
+      } else if (save.coins >= priceOf(w.id)) {
+        save.coins -= priceOf(w.id);
         save.ownedWeapons.push(w.id);
         this.toast(`${w.name} 구매 완료 — [장착]을 누르세요`);
       } else {
         this.shake(e.currentTarget);
-        this.toast(`코인이 부족합니다 (◆ ${(w.price - save.coins).toLocaleString()} 더 필요)`);
+        this.toast(`코인이 부족합니다 (◆ ${(priceOf(w.id) - save.coins).toLocaleString()} 더 필요)`);
         return;
       }
       persist();
@@ -312,7 +359,7 @@ export class MenuUI {
   renderShop() {
     const list = $('shop-list');
     const order = [...BUNDLES.filter((b) => b.soon), ...BUNDLES.filter((b) => !b.soon)];
-    list.innerHTML = order.map((b) => {
+    list.innerHTML = this.dealsHtml() + order.map((b) => {
       const owned = b.weapons.every((wid) => save.ownedSkins.includes(skinId(b.id, wid))) && (!b.randomCharSkin || hasCharSkin());
       const free = !b.price;
       const soon = b.soon && !xmasOpen() && !owned;
@@ -336,7 +383,54 @@ export class MenuUI {
       </section>`;
     }).join('');
     list.querySelectorAll('.b-buy').forEach((btn) => (btn.onclick = () => this.buyBundle(btn.dataset.b, btn)));
+    list.querySelectorAll('.deal-buy').forEach((btn) => (btn.onclick = (e) => { e.stopPropagation(); this.buyDeal(btn.dataset.w, btn); }));
+    list.querySelectorAll('.deal-card').forEach((el) => (el.onclick = () => this.openShopPreview(null, el.dataset.w)));
+    clearInterval(this._dealTimer);
+    this._dealTimer = setInterval(() => {
+      const el = $('deal-left');
+      if (!el || this.openId !== 'panel-shop') { clearInterval(this._dealTimer); return; }
+      const s = dealSecondsLeft();
+      if (s <= 0) { this.renderShop(); return; }
+      el.textContent = `${Math.floor(s / 3600)}시간 ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}분 ${String(s % 60).padStart(2, '0')}초 남음`;
+    }, 1000);
     list.querySelectorAll('.b-w').forEach((btn) => (btn.onclick = () => this.openShopPreview(btn.dataset.b, btn.dataset.w, btn.dataset.outfit)));
+  }
+
+  /** "today's deals": two weapons the player does not own, 30–50 % off */
+  dealsHtml() {
+    if (!isHack()) return '';
+    const deals = dealsFor(save.ownedWeapons);
+    const cards = deals.map((d) => {
+      const w = WEAPONS[d.id], r = RARITY[w.rarity], cat = CATEGORIES.find((c) => c.id === w.cat).name;
+      return `<div class="deal-card" data-w="${d.id}" style="--rc:${r.color}" title="눌러서 3D로 보기">
+        <div class="deal-off">-${d.off}%</div>
+        <img src="${getWeaponIcon(d.id)}" alt="">
+        <div class="deal-name">${w.name}<small>${r.name} · ${cat}</small></div>
+        <div class="deal-price"><s>◆ ${d.price.toLocaleString()}</s><b>◆ ${d.sale.toLocaleString()}</b></div>
+        <button class="btn primary small deal-buy" data-w="${d.id}">구매</button>
+      </div>`;
+    }).join('');
+    return `<section class="deals">
+      <div class="deals-head"><b>🔥 오늘의 할인</b><small id="deal-left"></small></div>
+      <div class="deals-row">${cards || '<div class="hint">모든 무기를 보유 중!</div>'}</div>
+    </section>`;
+  }
+
+  buyDeal(wid, btn) {
+    const d = dealOf(wid);
+    if (!d || save.ownedWeapons.includes(wid)) return;
+    if (save.coins < d.sale) {
+      this.shake(btn);
+      this.toast(`코인이 부족합니다 (◆ ${(d.sale - save.coins).toLocaleString()} 더 필요)`);
+      return;
+    }
+    save.coins -= d.sale;
+    save.ownedWeapons.push(wid);
+    persist();
+    audio.init(); audio.kill();
+    this.toast(`🔥 ${WEAPONS[wid].name} 할인 구매 완료! (무기 탭에서 장착)`);
+    this.refresh();
+    this.renderShop();
   }
 
   buyBundle(bid, btn) {
@@ -370,13 +464,13 @@ export class MenuUI {
     const b = BUNDLES.find((x) => x.id === bid);
     const pop = $('shop-pop');
     pop.classList.remove('hidden');
-    pop.className = 'shop-pop ' + bid;
-    $('shop-pop-title').textContent = `${b.name} · ${outfit ? '캐릭터 의상' : WEAPONS[wid].name}`;
+    pop.className = 'shop-pop ' + (bid || 'deal');
+    $('shop-pop-title').textContent = b ? `${b.name} · ${outfit ? '캐릭터 의상' : WEAPONS[wid].name}` : `🔥 오늘의 할인 · ${WEAPONS[wid].name}`;
     const slot = pop.querySelector('.preview-slot');
     slot.appendChild(this.preview.canvas);
     this.previewActive = true;
     if (outfit) { this.setSubject('char'); this.setPreviewCharacter(getCharacter(getCharSkin(outfit)?.char || save.character), outfit); }
-    else { this.setSubject('weapon'); this.setPreviewWeapon(wid, skinId(bid, wid)); }
+    else { this.setSubject('weapon'); this.setPreviewWeapon(wid, bid ? skinId(bid, wid) : null); }
     this.resizePreview();
   }
 

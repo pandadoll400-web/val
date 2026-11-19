@@ -169,6 +169,11 @@ export class NetSession {
       audio.shot('railgun', dist);
       return;
     }
+    if (w.taser) {
+      g.effects.taserBolt(from, end.distanceTo(rp.position) > 1 ? end : from.clone().add(new THREE.Vector3(-Math.sin(rp.yaw), Math.sin(rp.pitch), -Math.cos(rp.yaw)).multiplyScalar(w.range)));
+      audio.shot('taser', dist);
+      return;
+    }
     if (w.flame) {
       const dir = new THREE.Vector3(-Math.sin(rp.yaw) * Math.cos(rp.pitch), Math.sin(rp.pitch), -Math.cos(rp.yaw) * Math.cos(rp.pitch));
       for (let i = 0; i < Math.min(n, 3); i++) g.effects.flame(from, dir, w.range, 3);

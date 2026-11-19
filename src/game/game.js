@@ -19,6 +19,8 @@ import { getPortrait } from '../menu/ui.js';
 import { currentUser } from '../net/auth.js';
 import { isXmasSkin } from '../data/charSkins.js';
 import { track, setMissionNotifier } from '../menu/missions.js';
+import { addXp, xpLine, setLevelNotifier } from '../menu/pass.js';
+import { matchXp } from '../data/pass.js';
 import { WEAPONS } from '../data/weapons.js';
 import { GameChat } from './chat.js';
 
@@ -80,6 +82,7 @@ export class Game {
     this.weapons = new WeaponSystem(this);
     this.hud = new HUD(this);
     setMissionNotifier((t) => this.hud.msg(t, 3));
+    setLevelNotifier((t) => this.hud.msg(t, 3));
     this.chat = new GameChat(this);
     this.touch = IS_TOUCH ? new TouchControls(this) : null;
 
@@ -270,6 +273,7 @@ export class Game {
     if (this.mode !== 'training') { track('matches'); if (win) track('wins'); }
     if (win) this.coinsEarned += COIN_WIN;
     save.coins += this.coinsEarned;
+    const xp = this.mode === 'training' || !this.hack ? null : addXp(matchXp({ kills: this.kills, headshots: this.headshots, win }));
     persist();
     document.exitPointerLock?.();
     $('death').classList.add('hidden');
@@ -281,7 +285,7 @@ export class Game {
       ${win ? '협곡의 적을 모두 섬멸했습니다.' : '협곡의 추위 속에 쓰러졌습니다.'}<br>
       처치 <b>${this.kills} / ${this.totalEnemies}</b> · 헤드샷 <b>${this.headshots}</b><br>
       플레이 시간 <b>${mins}분 ${String(secs).padStart(2, '0')}초</b><br>
-      획득 코인 <span class="coin">◆ ${this.coinsEarned.toLocaleString()}</span>`;
+      획득 코인 <span class="coin">◆ ${this.coinsEarned.toLocaleString()}</span>${xp ? xpLine(xp) : ''}`;
     $('result').classList.remove('hidden');
     $('result-again').textContent = '다시하기';
     $('result-exit').textContent = '메뉴로';
@@ -762,7 +766,7 @@ export class Game {
     const team = (t) => rows.filter((r) => r.p.team === t).sort((a, b) => b.s.k - a.s.k || a.s.d - b.s.d).map((r) => {
       const c = getCharacter(r.p.char), face = getPortrait(c);
       return `<tr class="${r.uid === net.uid ? 'me' : ''}">
-        <td class="kp">${face ? `<img src="${face}" alt="">` : ''}<span>${r.s.k === best && best > 0 ? '★ ' : ''}${r.p.name}<small>${c.name}</small></span></td>
+        <td class="kp">${face ? `<img src="${face}" alt="">` : ''}<span>${r.s.k === best && best > 0 ? '★ ' : ''}${r.p.level ? `<em class="lv">Lv.${r.p.level}</em>` : ''}${r.p.name}<small>${r.p.title ? `🎖️ ${r.p.title} · ` : ''}${c.name}</small></span></td>
         <td>${r.s.k}</td><td>${r.s.d}</td><td>${r.s.a}</td></tr>`;
     }).join('');
     const my = this.myTeam, others = [...new Set(rows.map((r) => r.p.team))].filter((t) => t !== my).sort();
@@ -791,6 +795,7 @@ export class Game {
     track('matches'); track('online'); if (win) track('wins');
     if (win) this.coinsEarned += COIN_WIN;
     save.coins += this.coinsEarned;
+    const xp = this.hack ? addXp(matchXp({ kills: this.kills, headshots: this.headshots || 0, win, online: true })) : null;
     persist();
     document.exitPointerLock?.();
     this.weapons.trigger = false;
@@ -803,7 +808,7 @@ export class Game {
     $('result-body').innerHTML = `
       ${result.reason === 'zones' ? (win ? '구역 2개를 먼저 점령했습니다!' : '상대가 구역 2개를 먼저 점령했습니다.') : result.reason === 'time' ? (draw ? '시간 종료 — 점령한 구역 수가 같습니다.' : win ? '시간 종료 — 더 많은 구역을 점령했습니다!' : '시간 종료 — 상대가 더 많은 구역을 점령했습니다.') : result.reason === 'left' ? (win ? '상대가 모두 나가서 승리했습니다.' : '경기가 종료되었습니다.') : win ? `${this.net.target}점을 먼저 따냈습니다!` : `상대가 먼저 ${this.net.target}점을 따냈습니다.`}<br>
       점수 <b>${s[my] || 0} : ${otherScores || 0}</b><br>
-      획득 코인 <span class="coin">◆ ${this.coinsEarned.toLocaleString()}</span>
+      획득 코인 <span class="coin">◆ ${this.coinsEarned.toLocaleString()}</span>${xpLine(xp)}
       ${this.statsTable()}`;
     $('result').classList.remove('hidden');
     $('result-again').textContent = '대기실로';

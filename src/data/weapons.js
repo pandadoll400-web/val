@@ -146,6 +146,16 @@ WEAPONS.railgun = {
   tracer: '#5ff7ff', stats: { damage: 50, rate: 25, range: 100, mobility: 70 },
 };
 
+WEAPONS.taser = {
+  id: 'taser', cat: 'sidearm', name: '테이저건', model: 'ZAP-2 전기 충격기', kind: 'gun', taser: true, noReload: true, hackOnly: true, rarity: 'epic', price: 1500,
+  desc: '12m 안의 적 1명에게 전기 침을 쏜다. 피해 15 + 1.5초 동안 느려짐(봇은 조준도 흔들림). 한 발 쏘면 4초 동안 스스로 충전된다. 벽은 못 뚫는다.',
+  damage: 15, head: 15, fireInterval: 0.5, auto: false, mag: 1, reserve: 0, reload: 0, recharge: { delay: 0, rate: 0.25 },
+  range: 12, adsFov: 60, mobility: 1.0, stun: 1.5,
+  spread: { hip: 0, move: 0, ads: 0, bloom: 0, maxBloom: 0 },
+  recoil: { pitch: 0.01, yaw: 0.003, kickZ: 0.03, kickRX: 0.05 },
+  tracer: '#ffe94a', stats: { damage: 15, rate: 10, range: 10, mobility: 95 },
+};
+
 export const CATEGORIES = [
   { id: "primary", name: "무기1", sub: "돌격" },
   { id: "secondary", name: "무기2", sub: "정밀" },
@@ -154,7 +164,7 @@ export const CATEGORIES = [
 export const CATEGORY_ORDER = {
   primary: ["smg", "rifle", "shotgun", "lmg", "flamer"],
   secondary: ["burst", "dmr", "sniper", "bow", "dualmini", "katana", "railgun"],
-  sidearm: ["pistol", "knife", "grenade", "smoke"],
+  sidearm: ["pistol", "taser", "knife", "grenade", "smoke"],
 };
 export const WEAPON_ORDER = [...CATEGORY_ORDER.primary, ...CATEGORY_ORDER.secondary, ...CATEGORY_ORDER.sidearm];
 export const DEFAULT_LOADOUT = { primary: "smg", secondary: "burst", sidearm: "pistol" };

@@ -2,6 +2,8 @@ import {
   getDb, ref, set, get, update, remove, push, onValue, onChildAdded, off, onDisconnect, runTransaction,
   myUid, serverNow, watchServerOffset, isPermissionError, serverTimestamp,
 } from './firebase.js';
+import { XP_PER_LEVEL } from '../data/pass.js';
+import { currentUser } from './auth.js';
 import { save, outfitFor } from '../save.js';
 import { CHARACTERS } from '../data/characters.js';
 import { randomMap, THEME_ORDER } from '../world/themes.js';
@@ -25,7 +27,7 @@ export const CAPTURE_TIME = 20, DOM_TIME = 360;
 export const ROUND_TIME = 90, OVERTIME = 30; // seconds
 const MAX_ROOM = 4;
 /** online version: everyone in a room must run the same build of the maps / rules (bump when they change) */
-export const NET_VER = 10;
+export const NET_VER = 11;
 const OLD_VER = '게임 버전이 다릅니다 — 둘 다 새로고침(Ctrl+F5)해서 최신 버전으로 맞춘 뒤 다시 들어오세요';
 const BOT_NAMES = ['AI 블리자드', 'AI 툰드라', 'AI 글래셔', 'AI 폴라리스', 'AI 아발란체', 'AI 서리발톱', 'AI 눈보라', 'AI 북풍'];
 
@@ -46,10 +48,11 @@ export function roomSlots(players, bots, mode, teams = {}) {
   return list;
 }
 
+const levelOf = (xp) => 1 + Math.floor((xp || 0) / XP_PER_LEVEL);
 export function myProfile() {
   const skins = {};
   for (const id of Object.values(save.loadout)) if (save.skins?.[id] && save.ownedSkins.includes(save.skins[id])) skins[id] = save.skins[id];
-  return { name: save.name, char: save.character, outfit: outfitFor(save.character), loadout: { ...save.loadout }, skins, joined: Date.now(), v: NET_VER };
+  return { name: save.name, char: save.character, outfit: outfitFor(save.character), loadout: { ...save.loadout }, skins, ...((currentUser()?.nick || '').toLowerCase() === 'hack' ? { level: levelOf(save.xp), title: save.title || '' } : {}), joined: Date.now(), v: NET_VER };
 }
 
 export function friendlyError(e) {

@@ -916,6 +916,44 @@ function flamer() {
   };
 }
 
+/* ======================= TASER ======================= */
+function taser() {
+  const g = new THREE.Group();
+  const yellow = new THREE.MeshStandardMaterial({ color: '#f2c81a', roughness: 0.45, metalness: 0.1 });
+  const zap = new THREE.MeshStandardMaterial({ color: '#c8f4ff', emissive: '#6fd8ff', emissiveIntensity: 1.2 });
+  // chunky body: yellow shell over a black frame
+  prof(g, [[-0.085, 0.012], [0.07, 0.012], [0.075, 0.07], [-0.07, 0.074], [-0.088, 0.05]], 0.036, yellow, 0.006);
+  prof(g, [[-0.09, 0.0], [0.06, 0.0], [0.06, 0.014], [-0.09, 0.014]], 0.034, VM.poly, 0.003);
+  // cartridge at the front with two electrode darts
+  part(g, B(0.042, 0.05, 0.036), VM.rubber, 0, 0.04, -0.104);
+  part(g, B(0.044, 0.008, 0.038), yellow, 0, 0.069, -0.104);
+  for (const y of [0.052, 0.028]) {
+    part(g, C(0.0045, 0.006), VM.steel, 0, y, -0.124);
+    part(g, C(0.0018, 0.012), zap, 0, y, -0.13);
+  }
+  // sights + laser
+  part(g, B(0.006, 0.008, 0.008), VM.poly, 0, 0.078, -0.06);
+  part(g, B(0.012, 0.008, 0.008), VM.poly, 0, 0.078, 0.05);
+  part(g, C(0.004, 0.02), VM.red, 0.022, 0.03, -0.07);
+  // guard, trigger, grip
+  const guard = part(g, new THREE.TorusGeometry(0.019, 0.0035, 6, 14, Math.PI), VM.poly, 0, 0.004, -0.025, 0, Math.PI / 2, Math.PI);
+  guard.scale.set(1, 1.1, 1);
+  part(g, B(0.005, 0.02, 0.005), yellow, 0, -0.004, -0.022, 0.25);
+  prof(g, [[-0.03, 0.006], [0.016, 0.006], [0.026, -0.092], [-0.018, -0.1], [-0.05, -0.004]], 0.034, VM.poly, 0.003);
+  for (let i = 0; i < 4; i++) part(g, B(0.0355, 0.005, 0.03), yellow, 0, -0.025 - i * 0.016, 0.012 + i * 0.004, -0.22);
+  const mag = new THREE.Group();
+  mag.position.set(0, -0.06, 0.012);
+  part(mag, B(0.026, 0.02, 0.036), VM.metal2, 0, 0, 0);
+  g.add(mag);
+  return {
+    group: g, kind: 'mag', mag, zapMat: zap,
+    muzzle: point(g, 0, 0.04, -0.14), eject: point(g, 0.02, 0.06, -0.06),
+    sightY: 0.08, hip: new THREE.Vector3(0.16, -0.16, -0.36), adsZ: -0.24,
+    grip: new THREE.Vector3(0, -0.04, 0.012), leftRest: new THREE.Vector3(-0.022, -0.06, 0.02),
+    flashScale: 0.2,
+  };
+}
+
 /* ======================= RAILGUN ======================= */
 function railgun() {
   const g = new THREE.Group();
@@ -951,7 +989,7 @@ function railgun() {
   };
 }
 
-export const GUN_BUILDERS = { pistol, knife, smg, shotgun, rifle, bow, dmr, sniper, lmg, burst, grenade, smoke, dualmini, katana, flamer, railgun };
+export const GUN_BUILDERS = { pistol, knife, smg, shotgun, rifle, bow, dmr, sniper, lmg, burst, grenade, smoke, dualmini, katana, flamer, railgun, taser };
 
 // which skin slot each shared viewmodel material maps to
 const SKIN_SLOT = new Map([

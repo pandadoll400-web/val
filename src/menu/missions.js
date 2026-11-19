@@ -1,6 +1,7 @@
 import { save, persist } from '../save.js';
 import { MISSION_TYPES, missionsFor, todayStr } from '../data/missions.js';
 import { audio } from '../audio.js';
+import { addXp, passOn } from './pass.js';
 
 const $ = (id) => document.getElementById(id);
 let onComplete = null;
@@ -84,9 +85,10 @@ export class MissionsUI {
     if (!m || m.claimed || m.prog < m.target) return;
     m.claimed = true;
     save.coins += m.reward;
+    addXp(50);
     persist();
     audio.init(); audio.kill();
-    this.ui.toast(`미션 보상 ◆${m.reward}!`);
+    this.ui.toast(`미션 보상 ◆${m.reward}${passOn() ? ' · +50 XP' : ''}!`);
     this.ui.refresh();
   }
 }

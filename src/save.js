@@ -15,6 +15,10 @@ const DEFAULT = {
   ownedOutfits: [],
   outfits: {},
   daily: null,
+  xp: 0,
+  passGot: {},
+  titles: [],
+  title: '',
 };
 
 function load() {
@@ -68,6 +72,11 @@ function normalize(save) {
   if (!save.outfits || typeof save.outfits !== 'object') save.outfits = {};
   for (const [c, o] of Object.entries(save.outfits)) if (!save.ownedOutfits.includes(o) || getCharSkin(o)?.char !== c) delete save.outfits[c];
   if (!save.advent || typeof save.advent !== 'object') save.advent = { y: 2026, got: {} };
+  // season pass
+  if (!(save.xp >= 0)) save.xp = 0;
+  if (!save.passGot || typeof save.passGot !== 'object') save.passGot = {};
+  if (!Array.isArray(save.titles)) save.titles = [];
+  if (save.title && !save.titles.includes(save.title)) save.title = '';
   return save;
 }
 

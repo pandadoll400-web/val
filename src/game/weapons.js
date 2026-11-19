@@ -86,6 +86,7 @@ export function makeNote(fx, color) {
 /* Reload animation tracks (gun-local space). Each track: L=left-hand, tilt=[rx,ry,rz] */
 function reloadTracks(id, L) {
   if (id === 'smg' || id === 'dmr' || id === 'lmg' || id === 'burst' || id === 'flamer' || id === 'railgun') return reloadTracks('rifle', L);
+  if (id === 'taser') return reloadTracks('pistol', L);
   if (id === 'rifle') return {
     tilt: [[0, Z3], [0.12, [0.15, 0.2, 0.55]], [0.66, [0.15, 0.2, 0.55]], [0.74, [0.05, 0.25, 0.35]], [0.88, [0.05, 0.25, 0.35]], [1, Z3]],
     left: [[0, L], [0.1, [0, -0.1, -0.15]], [0.16, [0, -0.12, -0.14]], [0.3, [0.03, -0.5, -0.06]], [0.44, [0.03, -0.5, -0.06]],
@@ -861,7 +862,7 @@ export class WeaponSystem {
     this.lastShot = this.time;
     const md = s.model;
     if (md.dual) { this.dualSide = !this.dualSide; md.muzzle = this.dualSide ? md.muzzleL : md.muzzleR; md.eject = this.dualSide ? md.ejectL : md.ejectR; }
-    if (def.flame) this.fireFlame(def); else if (def.rail) this.fireRail(def); else this.fireBullets(def);
+    if (def.flame) this.fireFlame(def); else if (def.rail) this.fireRail(def); else if (def.taser) this.fireTaser(def); else this.fireBullets(def);
 
     // recoil
     const r = def.recoil, adsK = 1 - this.adsT * 0.35;
@@ -874,14 +875,14 @@ export class WeaponSystem {
     // muzzle + sound
     const m = s.model;
     const vmPos = m.muzzle.getWorldPosition(new THREE.Vector3());
-    if (!this.scoped && !def.flame) this.game.effects.muzzleFlash(this.vmScene, vmPos, this.muzzleWorld(), m.flashScale);
+    if (!this.scoped && !def.flame && !def.taser) this.game.effects.muzzleFlash(this.vmScene, vmPos, this.muzzleWorld(), m.flashScale);
     this.vmFlash.position.copy(vmPos);
     this.vmFlash.intensity = 3;
     this.vmFlashT = 0.05;
     audio.shot(def.id);
 
     if (def.id === 'shotgun' || def.id === 'sniper') { this.cycleP = 0; this.firedEvents.clear(); }
-    else if (!def.flame) this.ejectShell();
+    else if (!def.flame && !def.taser) this.ejectShell();
     skills.onPlayerShot();
     this.game.onPlayerShot();
     if (s.mag === 0 && s.reserve > 0) this.autoReloadAt = this.time + (def.id === 'sniper' ? def.cycle + 0.1 : 0.25);
@@ -1023,6 +1024,34 @@ export class WeaponSystem {
     if (hitAny) game.hits++;
     this.lastTracerEnd = end.clone();
     game.effects.railBeam(this.muzzleWorld(), end);
+  }
+
+  /** taser: hits the first enemy in a short line (walls block it), small damage + slow */
+  fireTaser(def) {
+    const game = this.game, cam = game.camera;
+    const origin = cam.position.clone();
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    this.raycaster.set(origin, dir);
+    this.raycaster.far = def.range;
+    const h = this.raycaster.intersectObjects(game.world.solids.concat(game.enemyMeshes()), false).find((x) => !x.object.userData.enemy || x.object.userData.enemy.alive);
+    let end = origin.clone().addScaledVector(dir, def.range);
+    if (h) {
+      end = h.point.clone();
+      const enemy = h.object.userData.enemy;
+      if (enemy) {
+        let dmg = def.damage * game.skills.damageMul();
+        if (game.player.weakT > 0) dmg = 1;
+        const res = enemy.applyDamage(Math.round(dmg), { weapon: def.name, headshot: false, from: 'player', point: h.point, skin: this.slot.skin });
+        if (!res.killed) enemy.applyEffect?.('slow', def.stun);
+        game.hud.hitmarker(res.killed ? 'kill' : 'hit');
+        game.hud.damageNumber(h.point, Math.round(dmg), false);
+        if (res.killed) audio.kill(); else audio.hit(false);
+        game.effects.zapSparks?.(h.point);
+        game.hits++;
+      }
+    }
+    this.lastTracerEnd = end.clone();
+    game.effects.taserBolt(this.muzzleWorld(), end);
   }
 
   /** burning enemies take a little damage every tick */

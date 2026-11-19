@@ -13,6 +13,7 @@ import { THEMES } from './world/themes.js';
 import { IS_TOUCH } from './game/touch.js';
 import { AdventUI } from './menu/advent.js';
 import { MissionsUI } from './menu/missions.js';
+import { PassUI } from './menu/pass.js';
 
 const canvas = document.getElementById('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -56,6 +57,7 @@ window.__account = account;
 const advent = new AdventUI({ ui });
 window.__advent = advent;
 window.__missions = new MissionsUI({ ui });
+window.__pass = new PassUI({ ui });
 
 // online: the room lobby hands us a match id → load it and play
 const room = new RoomUI({

@@ -481,6 +481,30 @@ export class Effects {
     if (Math.random() < 0.3) this.puff(from.clone().addScaledVector(dir, range * 0.8), '#5a4a40', 1.4, 0.8, 0.25);
   }
 
+  /** taser: a jagged yellow-white bolt that flickers for a moment */
+  taserBolt(from, to) {
+    const dist = from.distanceTo(to);
+    if (dist < 0.2) return;
+    const dir = to.clone().sub(from).normalize();
+    const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+    const up = new THREE.Vector3().crossVectors(side, dir);
+    for (let strand = 0; strand < 2; strand++) {
+      const n = Math.max(4, Math.min(14, Math.floor(dist / 0.7)));
+      let prev = from.clone();
+      for (let i = 1; i <= n; i++) {
+        const p = from.clone().addScaledVector(dir, (i / n) * dist);
+        if (i < n) p.addScaledVector(side, (Math.random() - 0.5) * 0.22).addScaledVector(up, (Math.random() - 0.5) * 0.22);
+        const seg = new THREE.Mesh(beamGeo, basicMat(strand ? '#ffe94a' : '#f4fbff', true, 1).clone());
+        const w = strand ? 0.03 : 0.014;
+        seg.position.copy(prev); seg.lookAt(p); seg.scale.set(w, w, prev.distanceTo(p));
+        this.add(seg, 0.18, (dt, k) => { seg.material.opacity = k * (0.6 + Math.random() * 0.4); if (k <= 0.02) seg.material.dispose(); });
+        prev = p;
+      }
+    }
+    this.burst(to, { count: 12, color: '#ffe94a', speed: 3.5, size: 0.035, gravity: 6, life: 0.35 });
+    this.flashLight(to, '#fff3a0', 4, 0.12);
+  }
+
   /** railgun: thick cyan beam with a spiral of rings, fading fast */
   railBeam(from, to) {
     const dist = from.distanceTo(to);
