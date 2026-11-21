@@ -53,7 +53,7 @@ const levelOf = (xp) => 1 + Math.floor((xp || 0) / XP_PER_LEVEL);
 export function myProfile() {
   const skins = {};
   for (const id of Object.values(save.loadout)) if (save.skins?.[id] && save.ownedSkins.includes(save.skins[id])) skins[id] = save.skins[id];
-  return { name: save.name, char: save.character, outfit: outfitFor(save.character), loadout: { ...save.loadout }, skins, level: levelOf(save.xp), title: save.title || '', royal: !!save.royal, rank: currentUser() ? rankOf(save.rp).id : '', joined: Date.now(), v: NET_VER };
+  return { name: save.name, char: save.character, outfit: outfitFor(save.character), loadout: { ...save.loadout }, skins, level: levelOf(save.xp), title: save.title || '', royal: !!save.royal, rank: (currentUser()?.nick || '').toLowerCase() === 'hack' ? rankOf(save.rp).id : '', joined: Date.now(), v: NET_VER };
 }
 
 export function friendlyError(e) {

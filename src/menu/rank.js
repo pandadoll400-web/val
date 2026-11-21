@@ -1,9 +1,11 @@
 import { save, persist } from '../save.js';
 import { RANKS, rankOf, nextRank, rankProgress, rankDelta, getRank } from '../data/rank.js';
-import { currentUser } from '../net/auth.js';
+import { currentUser, watchAuth } from '../net/auth.js';
 import { writeRank, topRanks } from '../net/friends.js';
 
 const $ = (id) => document.getElementById(id);
+/** ranked play (경쟁전) is on the "hack" account only for now */
+export const rankOn = () => (currentUser()?.nick || '').toLowerCase() === 'hack';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /** small rank icon for names (room list, scoreboard) */
@@ -11,7 +13,7 @@ export const rankBadge = (id) => (id ? `<em class="rk" title="${getRank(id).name
 
 /** apply an online result (logged-in accounts only); returns { delta, rp, from, to } or null */
 export function applyRank(win, draw) {
-  if (!currentUser()) return null;
+  if (!rankOn()) return null;
   const from = rankOf(save.rp);
   const old = save.rp || 0;
   save.rp = Math.max(0, old + rankDelta(win, draw));
@@ -24,6 +26,7 @@ export function applyRank(win, draw) {
 
 /** "🏆 골드 +25 (532) 승급!" line for the result screen */
 export function rankLine(r) {
+  if (!rankOn()) return '';
   if (!r) return '<div class="rank-line guest">🏆 로그인하면 랭크 점수가 기록돼요</div>';
   const up = r.to.min > r.from.min, down = r.to.min < r.from.min;
   return `<div class="rank-line">🏆 <b style="color:${r.to.color}">${r.to.icon} ${r.to.name}</b> <span class="${r.delta >= 0 ? 'up' : 'down'}">${r.delta >= 0 ? '+' : ''}${r.delta}</span> (${r.rp})${up ? ' <span class="promo">🎉 승급!</span>' : down ? ' <span class="demo">강등</span>' : ''}</div>`;
@@ -51,6 +54,7 @@ export class RankUI {
     pop.querySelectorAll('[data-rt]').forEach((b) => (b.onclick = () => { this.tab = b.dataset.rt; this.render(); }));
     const prev = ui.onRefresh;
     ui.onRefresh = () => { prev?.(); this.update(); };
+    watchAuth(() => this.update());
     this.update();
   }
 
@@ -58,6 +62,8 @@ export class RankUI {
   update() {
     const btn = $('rank-btn');
     if (!btn) return;
+    btn.classList.toggle('hidden', !rankOn());
+    if (!rankOn()) this.close();
     const r = rankOf(save.rp);
     btn.innerHTML = currentUser() ? `🏆 <span style="color:${r.color}">${r.icon} ${r.name}</span> <small>${save.rp}</small>` : '🏆 랭크';
   }

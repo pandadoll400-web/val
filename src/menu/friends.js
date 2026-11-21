@@ -1,6 +1,7 @@
 import { currentUser } from '../net/auth.js';
 import { sendRequest, accept, decline, removeFriend, invite, clearInvite, watchFriends, startPresence } from '../net/friends.js';
 import { rankOf } from '../data/rank.js';
+import { rankOn } from './rank.js';
 import { audio } from '../audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -87,7 +88,7 @@ export class FriendsUI {
     const inv = this.liveInvites().map((v) => `<div class="fr-row req"><span class="nm">🎮 ${esc(v.nick)}님의 초대</span>
         <button class="btn primary small" data-join="${v.uid}">참가</button><button class="btn ghost small" data-ign="${v.uid}">무시</button></div>`).join('');
     const list = this.state.friends.map((f) => { const k = rankOf(f.rp); return `<div class="fr-row ${f.online ? 'on' : ''}">
-        <span class="st">${f.online ? '🟢' : '⚫'}</span><span class="nm">${esc(f.nick)} <em class="rk" style="color:${k.color}">${k.icon}</em><small>${f.online ? '접속 중' : '오프라인'}</small></span>
+        <span class="st">${f.online ? '🟢' : '⚫'}</span><span class="nm">${esc(f.nick)}${rankOn() ? ` <em class="rk" style="color:${k.color}">${k.icon}</em>` : ''}<small>${f.online ? '접속 중' : '오프라인'}</small></span>
         ${code ? `<button class="btn primary small" data-inv="${f.uid}" ${f.online ? '' : 'disabled'}>초대</button>` : ''}
         <button class="btn ghost small fr-x" data-del="${f.uid}" data-nick="${esc(f.nick)}" title="친구 삭제">✕</button></div>`; }).join('');
     $('fr-body').innerHTML = (req || inv ? `<div class="fr-sec">받은 요청 · 초대</div>${inv}${req}` : '')
