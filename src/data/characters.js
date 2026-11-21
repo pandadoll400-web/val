@@ -114,6 +114,13 @@ export const CHARACTERS = [
     q: { name: '체인', desc: '조준한 방향으로 쇠사슬을 던져 맞은 적을 2.5초간 묶는다 (이동 불가)', cd: 12 },
     e: { name: '자전거', desc: '10초간 자전거를 탄다 — 이동속도 1.7배, 사격 불가, 부딪힐 때마다 50 피해 (E로 일찍 내리기)', cd: 22 },
   },
+  {
+    id: 'chaos', name: '카오스', title: '시간의 마술사', rarity: 'mythic', price: 0, hackOnly: true,
+    color: '#3a2a7a', accent: '#ffcf5a',
+    desc: '흐르는 시간을 비트는 마술사. 실수는 되돌리고, 적의 시간은 멈춰 세운다.',
+    q: { name: '되감기', desc: '3초 전의 위치와 체력으로 돌아간다 (체력은 그때가 더 많을 때만)', cd: 14 },
+    e: { name: '시간 정지 구역', desc: '조준한 곳에 5초간 시계 결계 — 안의 적은 이동속도 절반 · 연사/재장전 느려짐', cd: 20 },
+  },
 ];
 
 /** character prices are set by rarity (rookie is free) */

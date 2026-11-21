@@ -117,11 +117,12 @@ export class MenuUI {
   refresh() {
     $('coin-count').textContent = save.coins.toLocaleString();
     this.onRefresh?.();
+    if (getCharacter(save.character).hackOnly && !isHack()) { save.character = 'rookie'; if (this.viewChar === 'chaos') this.viewChar = 'rookie'; }
     const c = getCharacter(save.character), lo = save.loadout;
     const wn = (id) => `<b style="color:${RARITY[WEAPONS[id].rarity].color}">${WEAPONS[id].name}</b>`;
     $('loadout-chip').innerHTML = `캐릭터 <b>${c.name}</b> <span style="color:${RARITY[c.rarity].color}">(${RARITY[c.rarity].name})</span>
       · 무기 ${wn(lo.primary)} / ${wn(lo.secondary)} / ${wn(lo.sidearm)}
-      <div class="ver">v2.2 · 빌드 ${__BUILD__}</div>`;
+      <div class="ver">v2.3 · 빌드 ${__BUILD__}</div>`;
   }
 
   /* ---------- characters ---------- */
@@ -129,6 +130,7 @@ export class MenuUI {
     const list = $('char-list');
     list.innerHTML = '';
     for (const c of CHARACTERS) {
+      if (c.hackOnly && !isHack()) continue;
       const r = RARITY[c.rarity];
       const owned = save.owned.includes(c.id);
       const el = document.createElement('button');

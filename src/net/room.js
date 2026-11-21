@@ -28,7 +28,7 @@ export const CAPTURE_TIME = 20, DOM_TIME = 360;
 export const ROUND_TIME = 90, OVERTIME = 30; // seconds
 const MAX_ROOM = 4;
 /** online version: everyone in a room must run the same build of the maps / rules (bump when they change) */
-export const NET_VER = 12;
+export const NET_VER = 13;
 const OLD_VER = '게임 버전이 다릅니다 — 둘 다 새로고침(Ctrl+F5)해서 최신 버전으로 맞춘 뒤 다시 들어오세요';
 const BOT_NAMES = ['AI 블리자드', 'AI 툰드라', 'AI 글래셔', 'AI 폴라리스', 'AI 아발란체', 'AI 서리발톱', 'AI 눈보라', 'AI 북풍'];
 
@@ -191,7 +191,7 @@ export class RoomClient {
     if (this.slots.length >= ROOM_SLOTS[mode]) throw fail('빈자리가 없습니다');
     const used = new Set(Object.values(this.bots).map((b) => b.name));
     const name = BOT_NAMES.find((n) => !used.has(n)) || 'AI';
-    const chars = CHARACTERS.map((c) => c.id);
+    const chars = CHARACTERS.filter((c) => !c.hackOnly).map((c) => c.id);
     const id = 'bot_' + Math.random().toString(36).slice(2, 8);
     await update(this.r('meta'), { [`bots/${id}`]: { name, char: chars[Math.floor(Math.random() * chars.length)], added: Date.now() }, ...(team ? { [`teams/${id}`]: team } : {}) });
   }

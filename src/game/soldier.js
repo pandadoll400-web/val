@@ -263,6 +263,41 @@ export function makeSoldier(color = '#4f7fa8', accent = '#9be8ff', style = 'enem
     for (let i = 0; i < 7; i++) add(torso, new THREE.TorusGeometry(0.035, 0.012, 5, 8), steel, -0.22 + i * 0.075, 0.62 - i * 0.07, -0.18, 'body', 0, 0, 0.8);
     for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) add(torso, new THREE.SphereGeometry(0.018, 6, 5), steel, sx * 0.15, 0.55 - i * 0.12, -0.19);
     add(torso, box(0.52, 0.12, 0.36), accentMat, 0, 0.66, 0);                 // collar
+  } else if (style === 'chaos') {
+    // time mage: deep hood with golden eyes, two gear halos behind the head, clock on the chest, hourglass on the belt, long cape
+    const gold = new THREE.MeshStandardMaterial({ color: '#ffcf5a', emissive: '#c88a10', emissiveIntensity: 0.7, metalness: 0.8, roughness: 0.3 });
+    const sand = new THREE.MeshStandardMaterial({ color: '#ffe6a0', emissive: '#ffb84a', emissiveIntensity: 0.5, transparent: true, opacity: 0.85 });
+    const face = new THREE.MeshStandardMaterial({ color: '#f4ecd8', roughness: 0.5 });
+    mats.push(gold, sand, face);
+    hadd(box(0.37, 0.37, 0.37), body, 0, 0.17, 0.03);                         // hood
+    hadd(cyl(0.0, 0.16, 0.22, 4), body, 0, 0.42, 0.06, -0.3, Math.PI / 4, 0);  // pointed tip
+    hadd(box(0.28, 0.28, 0.02), dark, 0, 0.12, -0.155);                       // shadowed face
+    hadd(box(0.06, 0.03, 0.01), gold, -0.06, 0.16, -0.168);                   // golden eyes
+    hadd(box(0.06, 0.03, 0.01), gold, 0.06, 0.16, -0.168);
+    // gear halos
+    for (const [r, z, n] of [[0.24, 0.24, 12], [0.15, 0.27, 8]]) {
+      hadd(new THREE.TorusGeometry(r, 0.018, 6, 28), gold, 0, 0.2, z);
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        hadd(box(0.04, 0.04, 0.02), gold, Math.cos(a) * (r + 0.025), 0.2 + Math.sin(a) * (r + 0.025), z, 0, 0, a);
+      }
+    }
+    // clock on the chest
+    add(torso, cyl(0.12, 0.12, 0.03, 24), face, 0, 0.42, -0.21, 'body', Math.PI / 2);
+    add(torso, new THREE.TorusGeometry(0.12, 0.015, 6, 24), gold, 0, 0.42, -0.226);
+    add(torso, box(0.015, 0.09, 0.01), dark, 0, 0.46, -0.232);                 // minute hand
+    add(torso, box(0.06, 0.015, 0.01), dark, 0.025, 0.42, -0.232);             // hour hand
+    for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; add(torso, box(0.012, 0.012, 0.01), gold, Math.cos(a) * 0.095, 0.42 + Math.sin(a) * 0.095, -0.23); }
+    // belt + hourglass
+    add(torso, box(0.5, 0.06, 0.32), dark, 0, 0.02, 0);
+    add(torso, cyl(0.0, 0.05, 0.07, 10), sand, -0.17, -0.02, -0.18);
+    add(torso, cyl(0.05, 0.0, 0.07, 10), sand, -0.17, 0.05, -0.18);
+    add(torso, box(0.12, 0.015, 0.12), gold, -0.17, 0.09, -0.18);
+    add(torso, box(0.12, 0.015, 0.12), gold, -0.17, -0.06, -0.18);
+    // cape with gold trim
+    add(torso, box(0.6, 0.95, 0.04), body, 0, 0.14, 0.21, 'body', 0.1);
+    add(torso, box(0.62, 0.05, 0.05), gold, 0, -0.32, 0.26, 'body', 0.1);
+    for (const s of [-1, 1]) add(hips, box(0.22, 0.5, 0.04), bodyDark, s * 0.13, -0.28, -0.15, 'body', 0.06); // robe front
   } else {
     helmet();
     hadd(box(0.28, 0.09, 0.03), glow, 0, 0.15, -0.15);                     // visor

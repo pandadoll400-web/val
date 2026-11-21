@@ -123,7 +123,7 @@ export class AIBot {
       if (dur >= 3) { this.blindT = 3; this.canSee = false; }
       return;
     }
-    if (type === 'slow') this.slowT = Math.max(this.slowT, dur);
+    if (type === 'slow' || type === 'timeslow') this.slowT = Math.max(this.slowT, dur);
     if (type === 'stun') this.stunT = Math.max(this.stunT, dur);
     if (type === 'root') this.rootT = Math.max(this.rootT, dur);
   }

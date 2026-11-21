@@ -74,7 +74,7 @@ export class Player {
     this.hp = this.maxHp;
     this.alive = true;
     this.glitchSlowT = this.weakT = this.blindT = this.shieldT = this.rootT = this.silenceT = 0;
-    this.speedBuffT = this.slowT = 0;
+    this.speedBuffT = this.slowT = this.timeSlowT = 0;
     this.flying = false;
     this.updateCamera(0);
   }
@@ -189,6 +189,7 @@ export class Player {
     speed *= 1 - 0.45 * w.adsT;
     if (this.crouching) speed *= 0.5;
     if (this.slowT > 0) { this.slowT -= dt; speed *= 0.5; }
+    if (this.timeSlowT > 0) this.timeSlowT -= dt;
     const bike = this.game.skills?.bikeT > 0;
     if (bike) speed = WALK * 1.7 * 1.0;
     if (w.guarding) speed *= 0.6;

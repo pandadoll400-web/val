@@ -672,6 +672,11 @@ export class Game {
     if (!v?._wrapped) return this.withSenderPalette(v?.from, () => this.onNetEffect({ ...v, _wrapped: true }));
     if (!this.player.alive) return;
     if (v.kind === 'slow' || v.kind === 'stun') this.player.slowT = Math.max(this.player.slowT, v.dur || 1);
+    else if (v.kind === 'timeslow') {
+      if (!(this.player.timeSlowT > 0)) this.hud.msg('⏳ 시간이 느려졌습니다', 1);
+      this.player.slowT = Math.max(this.player.slowT, v.dur || 0.6);
+      this.player.timeSlowT = Math.max(this.player.timeSlowT || 0, v.dur || 0.6);
+    }
     else if (v.kind === 'glitch') this.player.applyGlitch(v.dur || 1);
     else if (v.kind === 'bloom') this.skills.applyBloomSeed(v.dur | 0);
     else if (v.kind === 'silence') this.skills.silence(v.dur || 10);
@@ -744,6 +749,7 @@ export class Game {
     else if (d.k === 'ink') s.createInk(V(d), { ...d.o, visual: true });
     else if (d.k === 'bloom') s.remoteTree(d.from || 'x', d);
     else if (d.k === 'bloomEnd') s.remoteTree(d.from || 'x', null);
+    else if (d.k === 'chrono') s.createChronoZone(V(d), true);
     else if (d.k === 'chain') { this.effects.chain(V(d.a), V(d.b)); audio.skill('rock', this.player.position.distanceTo(V(d.a))); }
   }
 

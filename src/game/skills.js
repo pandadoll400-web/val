@@ -44,6 +44,31 @@ function frostDecal() {
   return frostTex;
 }
 
+/* Chaos time zone ground decal: a clock face (ticks + rings) */
+let clockTex = null;
+function clockDecal() {
+  if (clockTex) return clockTex;
+  const S = 256, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(S / 2, S / 2, 10, S / 2, S / 2, S / 2);
+  grd.addColorStop(0, 'rgba(160,130,255,.45)'); grd.addColorStop(0.75, 'rgba(110,80,230,.22)'); grd.addColorStop(1, 'rgba(110,80,230,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, S, S);
+  g.translate(S / 2, S / 2);
+  g.strokeStyle = '#ffd77a'; g.shadowColor = '#ffb030'; g.shadowBlur = 8; g.lineCap = 'round';
+  g.lineWidth = 5; g.beginPath(); g.arc(0, 0, S * 0.45, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 2; g.beginPath(); g.arc(0, 0, S * 0.36, 0, Math.PI * 2); g.stroke();
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * Math.PI * 2, big = i % 5 === 0;
+    g.lineWidth = big ? 5 : 2;
+    g.beginPath(); g.moveTo(Math.cos(a) * S * (big ? 0.37 : 0.405), Math.sin(a) * S * (big ? 0.37 : 0.405)); g.lineTo(Math.cos(a) * S * 0.435, Math.sin(a) * S * 0.435); g.stroke();
+  }
+  g.fillStyle = '#ffd77a'; g.beginPath(); g.arc(0, 0, 8, 0, Math.PI * 2); g.fill();
+  clockTex = new THREE.CanvasTexture(c);
+  clockTex.colorSpace = THREE.SRGBColorSpace;
+  return clockTex;
+}
+
 /* soft cloud sprite (steam) and splattered ink decal */
 let steamTex = null, inkTex = null;
 function steamTexture() {
@@ -130,8 +155,8 @@ export class SkillSystem {
     this.game.weapons.endLeftCast();
   }
 
-  fireRateMul() { return this.overheatT > 0 ? 1.6 : 1; }
-  reloadMul() { return this.overheatT > 0 ? 1.4 : 1; }
+  fireRateMul() { return (this.overheatT > 0 ? 1.6 : 1) * (this.p.timeSlowT > 0 ? 0.6 : 1); }
+  reloadMul() { return (this.overheatT > 0 ? 1.4 : 1) * (this.p.timeSlowT > 0 ? 0.6 : 1); }
   isInvisible() { return this.invisT > 0; }
   onPlayerShot() { if (this.invisT > 0) this.endInvis(); }
 
@@ -211,7 +236,7 @@ export class SkillSystem {
     if (!e) { this.game.hud.msg('빗나감', 1); this.cd.e = 1.5; return false; }
     let cid = e.isRemote ? e.profile?.char : e.charId;
     if (!cid) { // AI without a character: a random one
-      const pool = CHARACTERS.filter((c) => c.id !== 'crick');
+      const pool = CHARACTERS.filter((c) => c.id !== 'crick' && !c.hackOnly);
       cid = e.charId = pool[Math.floor(Math.random() * pool.length)].id;
     }
     if (cid === 'crick') { this.game.hud.msg('크릭의 스킬은 빼앗을 수 없습니다', 1.4); this.cd.e = 1.5; return false; }
@@ -286,6 +311,113 @@ export class SkillSystem {
       this.game.hud.flashTint('rgba(255,200,90,.2)');
       p.addRecoil(0.03, 0);
       audio.skill('boom', 0);
+    }
+  }
+
+  /* ================= 카오스 ================= */
+  /** keep the last 3 s of my position and HP (one sample every 0.1 s) for 되감기 */
+  recordTime(dt) {
+    const h = (this.timeHist ||= []);
+    if (!this.p.alive) { h.length = 0; this.histT = 0; return; }
+    this.histT = (this.histT || 0) - dt;
+    if (this.histT > 0) return;
+    this.histT = 0.1;
+    const last = h[h.length - 1];
+    // a jump of more than 15 m (respawn, teleport) starts a new history
+    if (last && last.pos.distanceTo(this.p.position) > 15) h.length = 0;
+    h.push({ pos: this.p.position.clone(), hp: this.p.hp });
+    if (h.length > 31) h.shift();
+  }
+
+  chaos_q() {
+    const h = this.timeHist || [];
+    if (h.length < 10) { this.game.hud.msg('되감을 시간이 아직 부족합니다', 1.2); return false; }
+    const old = h[0], from = this.p.position.clone();
+    const a = from.clone().setY(from.y + 1), b = old.pos.clone().setY(old.pos.y + 1);
+    this.fx.puff(a, '#7a5cff', 2.6, 0.6, 0.7);
+    this.fx.lightning(a, b, '#ffcf5a', 0.03);
+    this.p.position.copy(old.pos);
+    this.p.vel.set(0, 0, 0);
+    const healed = old.hp > this.p.hp ? Math.round(old.hp - this.p.hp) : 0;
+    if (healed) this.p.hp = Math.min(this.p.maxHp, old.hp);
+    h.length = 0;
+    this.fx.puff(b, '#ffcf5a', 2.6, 0.6, 0.7);
+    this.fx.burst(b, { count: 24, color: '#ffcf5a', speed: 4, size: 0.05, gravity: 0, life: 0.8 });
+    this.fx.ring?.(old.pos.clone().setY(old.pos.y + 0.06), '#ffcf5a', 1.4, 0.6, 0.1);
+    const net = this.game.net;
+    net?.fx({ k: 'zap', a: { x: a.x, y: a.y, z: a.z }, b: { x: b.x, y: b.y, z: b.z }, c: '#ffcf5a' });
+    net?.fx({ k: 'ring', x: old.pos.x, y: old.pos.y + 0.06, z: old.pos.z, c: '#ffcf5a', r: 1.4 });
+    this.game.hud.flashTint('rgba(255,200,90,.35)');
+    audio.skill('teleport');
+    this.game.hud.msg(healed ? `⏳ 되감기! 체력 +${healed}` : '⏳ 되감기!', 1.2);
+  }
+
+  chaos_e() {
+    const { end } = this.aimEnemy(30);
+    const pos = end.clone();
+    pos.y = this.floorBelow(pos);
+    this.createChronoZone(pos);
+  }
+
+  createChronoZone(pos, visual = false) {
+    if (!visual) this.game.net?.fx({ k: 'chrono', x: pos.x, y: pos.y, z: pos.z });
+    const R = 5, group = new THREE.Group();
+    group.position.copy(pos);
+    const decal = new THREE.Mesh(new THREE.PlaneGeometry(R * 2.1, R * 2.1).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: clockDecal(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    decal.position.y = 0.04;
+    const hands = new THREE.Group();
+    hands.position.y = 0.06;
+    const handMat = new THREE.MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending });
+    const minute = new THREE.Mesh(new THREE.PlaneGeometry(0.18, R * 0.8).rotateX(-Math.PI / 2).translate(0, 0, -R * 0.4), handMat);
+    const hour = new THREE.Mesh(new THREE.PlaneGeometry(0.26, R * 0.5).rotateX(-Math.PI / 2).translate(0, 0, -R * 0.25), handMat.clone());
+    hands.add(minute, hour);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(R, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: '#7a5cff', transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+    dome.scale.setScalar(0.01);
+    group.add(decal, hands, dome);
+    const glows = [];
+    for (let i = 0; i < 10; i++) {
+      const sp = this.fx.glowSprite(i % 2 ? '#ffcf5a' : '#a58cff', 0.9);
+      sp.userData.a = (i / 10) * Math.PI * 2;
+      sp.userData.h = 0.6 + Math.random() * 2.2;
+      group.add(sp);
+      glows.push(sp);
+    }
+    const light = new THREE.PointLight('#a58cff', 10, 16, 1.5);
+    light.position.y = 1.5;
+    group.add(light);
+    this.game.scene.add(group);
+    this.fx.ring?.(pos.clone().setY(pos.y + 0.06), '#ffcf5a', R, 0.5, 0.12);
+    this.fx.burst(pos.clone().setY(pos.y + 0.5), { count: 30, color: '#ffcf5a', speed: 6, size: 0.06, gravity: 0, life: 0.8 });
+    audio.skill('glitch', this.p.position.distanceTo(pos));
+    this.zones.push({ kind: 'chrono', visual, group, decal, hands, minute, hour, dome, glows, light, pos: pos.clone(), radius: R, t: 5, tick: 0, age: 0 });
+  }
+
+  updateChronoZone(z, dt) {
+    z.age += dt;
+    const fade = Math.min(1, z.t / 0.6), grow = Math.min(1, z.age / 0.35);
+    z.dome.scale.setScalar(Math.max(0.01, 1 - Math.pow(1 - grow, 3)));
+    z.dome.material.opacity = 0.16 * fade;
+    z.decal.material.opacity = (0.8 + Math.sin(z.age * 4) * 0.2) * fade;
+    z.decal.rotation.y += dt * 0.15;
+    z.minute.rotation.y -= dt * 2.4;       // hands sweep slowly — time crawls inside
+    z.hour.rotation.y -= dt * 0.4;
+    z.minute.material.opacity = z.hour.material.opacity = 0.95 * fade;
+    for (const g of z.glows) {
+      g.userData.a += dt * 0.5;
+      g.position.set(Math.cos(g.userData.a) * z.radius * 0.8, g.userData.h, Math.sin(g.userData.a) * z.radius * 0.8);
+      g.material.opacity = 0.7 * fade;
+    }
+    z.light.intensity = (8 + Math.sin(z.age * 5) * 2) * fade;
+    if (z.visual) return;
+    z.tick -= dt;
+    while (z.tick <= 0) {
+      z.tick += 0.25;
+      for (const b of this.enemies()) {
+        const dx = b.position.x - z.pos.x, dz = b.position.z - z.pos.z;
+        if (dx * dx + dz * dz < z.radius * z.radius && Math.abs(b.position.y - z.pos.y) < 3) b.applyEffect('timeslow', 0.6);
+      }
     }
   }
 
@@ -1359,6 +1491,7 @@ export class SkillSystem {
       if (this.stolen.t <= 0 || !this.p.alive) this.endSteal();
     }
     this.updateBike(dt);
+    this.recordTime(dt);
     if (this.overheatT > 0) this.overheatT -= dt;
     if (this.echoBuffT > 0) this.echoBuffT -= dt;
     if (this.golemT > 0) { this.golemT -= dt; if (this.golemT <= 0 || !this.p.alive) this.endGolem(); }
@@ -1375,7 +1508,7 @@ export class SkillSystem {
     this.updateLaser(dt);
     this.updateRemoteLasers(dt);
     if (this.invisT > 0) { this.invisT -= dt; if (this.invisT <= 0) this.endInvis(); }
-    this.game.hud.setTint(this.p.shieldT > 0 ? 'shield' : this.golemT > 0 ? 'golem' : this.invisT > 0 ? 'stealth' : this.overheatT > 0 ? 'overheat' : this.echoBuffT > 0 ? 'echo' : this.bloomDmgT > 0 ? 'bloom' : this.p.slowT > 0 ? 'slow' : null);
+    this.game.hud.setTint(this.p.shieldT > 0 ? 'shield' : this.golemT > 0 ? 'golem' : this.invisT > 0 ? 'stealth' : this.overheatT > 0 ? 'overheat' : this.echoBuffT > 0 ? 'echo' : this.bloomDmgT > 0 ? 'bloom' : this.p.slowT > 0 || this.p.timeSlowT > 0 ? 'slow' : null);
 
     const world = this.game.world;
     for (let i = this.walls.length - 1; i >= 0; i--) {
@@ -1420,6 +1553,15 @@ export class SkillSystem {
       if (z.kind === 'ink') {
         z.decal.material.opacity = Math.min(1, z.t / 1.2);
         if (z.t <= 0) { this.game.scene.remove(z.decal); z.decal.geometry.dispose(); z.decal.material.dispose(); this.zones.splice(i, 1); }
+        continue;
+      }
+      if (z.kind === 'chrono') {
+        this.updateChronoZone(z, dt);
+        if (z.t <= 0) {
+          this.game.scene.remove(z.group);
+          z.group.traverse((o) => { if (o.isMesh) o.geometry.dispose(); if (o.isMesh || o.isSprite) o.material.dispose(); });
+          this.zones.splice(i, 1);
+        }
         continue;
       }
       if (z.kind === 'frost') {

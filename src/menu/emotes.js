@@ -661,6 +661,49 @@ export const EMOTES = {
     },
   },
 
+  chaos: {
+    line: '시간은... 내 편이다.', lang: 'ko-KR', pitch: 0.8, rate: 0.9, speakAt: 2.0, dur: 4.6, view: 0.3,
+    keys: [
+      [0, {}, {}],
+      [0.6, { shR: [1.4, 0, 0.1], elR: [0.5, 0, 0], neck: [0.1, 0, 0] }, {}],
+      [1.4, { shR: [1.4, 0, 0.1], elR: [0.5, 0, 0], neck: [0.1, 0, 0] }, {}],
+      [2.0, { shR: [1.0, 0, 0.1], elR: [1.3, 0, 0], shL: [0.6, 0, -0.4], elL: [0.6, 0, 0], torso: [-0.05, 0.15, 0], neck: [-0.1, 0.1, 0] }, {}],
+      [3.4, { shR: [1.0, 0, 0.1], elR: [1.3, 0, 0], shL: [1.8, 0, -0.2], elL: [0.2, 0, 0], torso: [-0.05, 0.15, 0], neck: [-0.15, 0, 0] }, {}],
+      [4.6, {}, {}],
+    ],
+    setup(ctx) {
+      // hourglass in the right hand
+      const glass = new THREE.Group();
+      const gold = addMat('#ffcf5a'), sand = addMat('#ffe6a0', 0.85);
+      glass.add(new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.09, 12), sand).translateY(0.045).rotateX(Math.PI));
+      glass.add(new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.09, 12), sand).translateY(-0.045));
+      for (const y of [0.095, -0.095]) glass.add(new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.015, 12), gold).translateY(y));
+      glass.add(glowSprite('#ffcf5a', 0.35));
+      ctx.model.joints.handR?.add(glass);
+      if (!ctx.model.joints.handR) { ctx.actorParent.add(glass); glass.position.set(0.3, 1.2, -0.3); }
+      glass.position.y -= 0.12;
+      ctx.glass = glass; ctx.props.push(glass);
+      // golden clock hands spinning around the body
+      ctx.hands = [];
+      for (let i = 0; i < 12; i++) {
+        const h = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.22), addMat(i % 3 ? '#ffcf5a' : '#a58cff'));
+        h.visible = false; ctx.actorParent.add(h); ctx.props.push(h); ctx.hands.push(h);
+      }
+    },
+    update(ctx, t) {
+      // the hourglass flips over
+      ctx.glass.rotation.z = t < 1.4 ? 0 : t < 2.0 ? ((t - 1.4) / 0.6) * Math.PI : Math.PI;
+      ctx.hands.forEach((h, i) => {
+        const u = t - 1.8 - i * 0.05;
+        h.visible = u > 0 && t < 4.3;
+        if (!h.visible) return;
+        const a = (i / 12) * Math.PI * 2 - u * 1.2;
+        h.position.set(Math.cos(a) * 0.8, 0.4 + (i % 4) * 0.35, Math.sin(a) * 0.8);
+        h.rotation.y = -a;
+      });
+    },
+  },
+
 };
 
 /** Plays an emote on a preview model. */
