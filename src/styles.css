@@ -836,3 +836,41 @@ em.lv.royal { background: linear-gradient(90deg, #ffcf5a, #fff1b8); box-shadow: 
   .xtree { position: absolute; right: 6px; bottom: 6px; width: 90px; height: 140px; pointer-events: none; }
   .pv { width: 100px; } .rw-pic { width: 86px; }
 }
+
+/* ---------- v2.2: rank, friends ---------- */
+.social-row { display: flex; gap: 10px; max-width: 362px; margin-top: 10px; }
+.social-row .btn { flex: 1; height: 40px; margin: 0 !important; padding: 0 10px; font-size: 14px; font-weight: 900; position: relative; white-space: nowrap; }
+.social-row small { opacity: .7; font-size: 11px; }
+.social-row .fr-on { color: #7dffb0; opacity: 1; }
+.social-row .dot { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; border-radius: 9px; background: #ff4d5e; color: #fff; font-style: normal; font-size: 11px; display: grid; place-items: center; padding: 0 4px; }
+.menu-left:has(.pass-btn:not(.hidden)) { padding-top: 100px; }
+em.rk { font-style: normal; margin-right: 3px; }
+.rank-line { margin-top: 6px; font-size: 14px; } .rank-line.guest { opacity: .6; font-size: 12px; }
+.rank-line .up { color: #7dffb0; font-weight: 900; } .rank-line .down { color: #ff6b6b; font-weight: 900; }
+.rank-line .promo { color: #ffd24a; font-weight: 900; } .rank-line .demo { color: #ff6b6b; }
+.rank-card, .friends-card { width: min(460px, 94vw); background: linear-gradient(160deg, #18233e, #0b1426); }
+.rank-me { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin: 6px 0 10px; border-radius: 12px; background: rgba(255,255,255,.06); }
+.rk-big { font-size: 40px; }
+.rk-info { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 14px; } .rk-info small { opacity: .75; font-size: 12px; }
+.rank-tabs { position: static; background: none; }
+.rank-list { max-height: 46vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.rk-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 9px; background: rgba(255,255,255,.05); font-size: 14px; }
+.rk-row.mine { background: rgba(255,207,90,.18); border: 1px solid #ffcf5a; }
+.rk-row .n { width: 24px; font-weight: 900; opacity: .8; } .rk-row .i { font-size: 18px; } .rk-row .nm { flex: 1; font-weight: 800; } .rk-row .rp { opacity: .8; font-size: 12px; }
+.fr-pop { position: fixed; z-index: 60; }
+.fr-add { display: flex; gap: 8px; margin: 8px 0; }
+.fr-add input { flex: 1; height: 36px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25); background: rgba(0,0,0,.3); color: #fff; padding: 0 12px; font-size: 14px; }
+.fr-add .btn, .fr-row .btn { width: auto !important; flex: none; margin: 0 !important; padding: 6px 12px; }
+#fr-body { max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+.fr-sec { font-size: 12px; font-weight: 900; opacity: .7; margin-top: 6px; }
+.fr-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.05); }
+.fr-row.req { background: rgba(255,207,90,.14); }
+.fr-row .nm { flex: 1; display: flex; flex-direction: column; font-weight: 800; font-size: 14px; } .fr-row .nm small { font-weight: 600; opacity: .6; font-size: 11px; }
+.fr-row.on .nm small { color: #7dffb0; opacity: 1; }
+.fr-row .fr-x { padding: 6px 9px; opacity: .6; }
+#room-invite { pointer-events: auto; margin-left: 6px; white-space: nowrap; width: auto; }
+.invite-card { position: fixed; z-index: 70; right: 16px; top: 80px; width: min(320px, 90vw); display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 14px;
+  background: linear-gradient(160deg, #2a4ac8, #12205a); border: 1px solid #ffcf5a; box-shadow: 0 12px 40px rgba(0,0,0,.6); animation: advPulse 1.6s ease-in-out infinite; }
+.invite-card small { opacity: .8; } .invite-card div { display: flex; gap: 8px; } .invite-card .btn { flex: 1; margin: 0 !important; }
+.skin-opt.perse { background: linear-gradient(90deg, rgba(31,63,168,.55), rgba(255,207,90,.35)); }
+@media (max-width: 760px) { .menu-left:has(.pass-btn:not(.hidden)) { padding-top: 0; } }

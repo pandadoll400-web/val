@@ -117,7 +117,7 @@ export const BUNDLES = [
     killFx: '선물 상자 눈보라', weapons: ['rifle', 'pistol', 'knife', 'flamer'],
   },
   {
-    id: 'perse', name: '🏛️ 페르세폴리스', rarity: 'infinity', price: 4000, season: true, hackOnly: true, outfits: ['perse_volt'],
+    id: 'perse', name: '🏛️ 페르세폴리스', rarity: 'infinity', price: 4000, season: true, outfits: ['perse_volt'],
     tagline: '고대 페르시아 왕궁의 청금석과 황금',
     desc: '청금석 바탕에 황금 팔각별 문양, 양옆에 날개 달린 황금 원반과 터키석 장식. 테이저건 · 레일건 스킨에 캐릭터 스킨 「경찰관 볼트」까지 함께 들어 있어요.',
     killFx: '황금 날개 원반', weapons: ['taser', 'railgun'],

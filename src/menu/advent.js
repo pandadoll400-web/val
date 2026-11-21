@@ -123,7 +123,7 @@ export class AdventUI {
       this.ui.toast('🌲 메리 크리스마스! 트리 정원사 블룸 스킨을 받았어요 (캐릭터 탭 → 블룸)');
     } else if (day === 24) {
       const pool = [];
-      for (const b of BUNDLES) if (!b.soon && !b.hackOnly) for (const w of b.weapons) if (!save.ownedSkins.includes(skinId(b.id, w))) pool.push(skinId(b.id, w));
+      for (const b of BUNDLES) if (!b.soon && !b.season && !b.hackOnly) for (const w of b.weapons) if (!save.ownedSkins.includes(skinId(b.id, w))) pool.push(skinId(b.id, w));
       if (pool.length) {
         const sid = pool[Math.floor(Math.random() * pool.length)];
         const [bid, wid] = sid.split('_');

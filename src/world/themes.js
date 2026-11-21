@@ -98,10 +98,24 @@ THEMES.xmas = {
   particles: { color: '#ffffff', size: 0.2, fall: 1.0, drift: 0.5, count: 2600 },
   prop: 'gift', pillar: 'xmasTree', surface: 'snow', snowy: true,
 };
+// v2.2 Persepolis: ancient palace terrace at sunset
+THEMES.perse = {
+  id: 'perse', name: '페르세폴리스', en: 'PERSEPOLIS',
+  lead: '노을빛에 물든 고대 페르시아의 왕궁. 백 개의 기둥 사이로 총성이 울린다.<br />왕궁에 숨어든 적 7명을 모두 처치하라.',
+  fog: '#e8b88a', fogNear: 60, fogFar: 330,
+  sky: { horizon: '#ffc890', warm: '#ff8a4a', mid: '#b86a8a', top: '#3a2a6a', aurora: 0, stars: 0.15 },
+  hemi: ['#ffe2c0', '#7a5a3a', 1.2], sun: ['#ffc890', 2.8],
+  cliff: ['#8a5a3a', '#c89a6a', '#ecd0a0'], cliffRough: 0.9,
+  floor: ['#cfa878', '#e8cc9a'], bank: ['#cfa878', '#e8cc9a'], river: '#c8a070', riverRough: 0.9,
+  block: { color: '#d8c0a0', emissive: '#000000', emissiveIntensity: 0, roughness: 0.85, opacity: 1 },
+  rock: '#c8a47a', crate: ['#8a5a32', '#3a2414'], wall: '#d8c0a0', roof: '#a88a62',
+  particles: { color: '#ffd890', size: 0.08, fall: 0.15, drift: 1.6, count: 1100, glow: true },
+  prop: 'urn', pillar: 'palm', surface: 'sand',
+};
 THEMES.ice.surface = 'snow'; THEMES.ice.wall = '#e8f4ff'; THEMES.ice.roof = '#cfe6f7';
 THEMES.forest.surface = 'grass'; THEMES.forest.wall = '#6b4a2e'; THEMES.forest.roof = '#3c2a1c';
 THEMES.honey.surface = 'grass'; THEMES.honey.wall = '#c98a3a'; THEMES.honey.roof = '#7a4a1a';
-export const THEME_ORDER = ['ice', 'forest', 'honey', 'lake', 'desert', 'camp'];
+export const THEME_ORDER = ['ice', 'forest', 'honey', 'lake', 'desert', 'camp', 'perse'];
 export const getTheme = (id) => THEMES[id] || THEMES.ice;
 export const randomMap = () => THEME_ORDER[Math.floor(Math.random() * THEME_ORDER.length)];
 
@@ -410,6 +424,21 @@ export function makeGiftProp(rng, scale = 1) {
   return g;
 }
 
+/** clay amphora with a painted band (Persepolis) */
+export function makeUrn(rng, scale = 1) {
+  const g = new THREE.Group();
+  const clay = mat('urnClay', { color: '#b8643a', roughness: 0.75 }), band = mat('urnBand', { color: '#1f3fa8', roughness: 0.5 });
+  const pts = [[0, 0], [0.12, 0.02], [0.2, 0.18], [0.22, 0.32], [0.16, 0.5], [0.08, 0.6], [0.1, 0.66]].map(([x, y]) => new THREE.Vector2(x * scale, y * scale));
+  const body = new THREE.Mesh(new THREE.LatheGeometry(pts, 14), clay);
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.222 * scale, 0.222 * scale, 0.05 * scale, 14, 1, true), band);
+  ring.position.y = 0.3 * scale;
+  body.castShadow = true;
+  g.add(body, ring);
+  g.rotation.z = rng() < 0.2 ? 1.4 : 0; // a few lie on their side
+  if (g.rotation.z) g.position.y = 0.2 * scale;
+  return g;
+}
+
 /** small decorative prop for a theme (no collision) */
 export function makeThemeProp(theme, rng, s = 1) {
   switch (theme.prop) {
@@ -418,6 +447,7 @@ export function makeThemeProp(theme, rng, s = 1) {
     case 'reed': return rng() < 0.6 ? makeReeds(rng, s) : makeBush(rng, s * 0.6);
     case 'cactus': return rng() < 0.7 ? makeCactus(rng, s * 0.7) : makeBush(rng, s * 0.5);
     case 'gift': return makeGiftProp(rng, s);
+    case 'urn': return rng() < 0.6 ? makeUrn(rng, s) : makeCactus(rng, s * 0.5);
     default: return null;
   }
 }
@@ -432,7 +462,7 @@ export function floorDetailTexture(id) {
   g.fillStyle = '#ffffff'; g.fillRect(0, 0, S, S);
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  if (id === 'desert') {
+  if (id === 'desert' || id === 'perse') {
     // wind ripples
     for (let y = 0; y < S; y += 9) {
       g.strokeStyle = `rgba(150,105,50,${0.10 + rnd() * 0.08})`; g.lineWidth = 2.5;

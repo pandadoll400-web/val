@@ -4,7 +4,7 @@ import {
   FOG_COLOR, makeSky, makeEnvironment, createCliffGeometry, updateCliff, cliffMaterial,
   makeCrystalCluster, makeIceRock, makeSnow,
 } from './canyonParts.js';
-import { getTheme, makeTree, makeMushroom, makeBush, makeFlowers, makeHive, makeHiveBox, honeycombTexture, makePine, makePalm, makeReeds, makeCactus, makeThemeProp, floorDetailTexture, makeXmasTree, makeGiftProp } from './themes.js';
+import { getTheme, makeTree, makeMushroom, makeBush, makeFlowers, makeHive, makeHiveBox, honeycombTexture, makePine, makePalm, makeReeds, makeCactus, makeThemeProp, floorDetailTexture, makeUrn, makeXmasTree, makeGiftProp } from './themes.js';
 import { MAP_LAYOUTS } from './maps.js';
 
 const HALF_W = 34;   // playable half-width (x)
@@ -103,7 +103,7 @@ export class IceCanyonWorld {
   surfaceAt(x, z, y = 0) {
     if (this.inWater(x, z, y)) return 'water';
     if (y < 0.2 && this.onIce(x, z)) return 'ice';
-    if (y > 0.2) return this.theme.id === 'ice' ? 'ice' : this.theme.id === 'desert' ? 'stone' : 'wood';
+    if (y > 0.2) return this.theme.id === 'ice' ? 'ice' : this.theme.id === 'desert' || this.theme.id === 'perse' ? 'stone' : 'wood';
     return this.theme.surface || 'snow';
   }
 
@@ -158,6 +158,7 @@ export class IceCanyonWorld {
       const cl = P === 'tree' ? makeTree(rng, 1.3 + rng() * 0.9) : P === 'flower' ? (i % 3 ? makeFlowers(rng, 1.4) : makeHiveBox(rng, 1.3))
         : P === 'gift' ? (i % 3 ? makeXmasTree(rng, 1.3 + rng() * 0.5) : makeGiftProp(rng, 1.6))
         : P === 'reed' ? (i % 3 ? makePine(rng, 1.4 + rng() * 0.6, this.theme.snowy) : makeReeds(rng, 1.5)) : P === 'cactus' ? (i % 3 ? makeCactus(rng, 1.2 + rng() * 0.5) : makePalm(rng, 1.2))
+        : P === 'urn' ? (i % 3 ? makeUrn(rng, 1.6 + rng() * 0.8) : makePalm(rng, 1.2))
         : makeCrystalCluster(rng, 1 + rng() * 1.6);
       cl.position.set(side * (this.halfW - 0.5 + rng() * 1.5), 0, -this.halfL + rng() * this.halfL * 2);
       this.scene.add(cl);

@@ -13,6 +13,8 @@ import { dealsFor, dealSecondsLeft } from '../data/deals.js';
 
 const isHack = () => (currentUser()?.nick || '').toLowerCase() === 'hack';
 /** Christmas skins / bundle go on sale December 1st (shown as a preview until then) */
+/** weapons sold for coins only from December (taser); the season pass still gives it */
+const notYet = (w) => w.decSale && !xmasOpen();
 const xmasOpen = () => { const d = new Date(); return d.getFullYear() > 2026 || (d.getFullYear() === 2026 && d.getMonth() === 11); };
 /** today's deal for a weapon (or null) and the price it sells for right now */
 const dealOf = (wid) => (isHack() ? dealsFor(save.ownedWeapons).find((d) => d.id === wid) || null : null);
@@ -119,7 +121,7 @@ export class MenuUI {
     const wn = (id) => `<b style="color:${RARITY[WEAPONS[id].rarity].color}">${WEAPONS[id].name}</b>`;
     $('loadout-chip').innerHTML = `캐릭터 <b>${c.name}</b> <span style="color:${RARITY[c.rarity].color}">(${RARITY[c.rarity].name})</span>
       · 무기 ${wn(lo.primary)} / ${wn(lo.secondary)} / ${wn(lo.sidearm)}
-      <div class="ver">v2.1 · 빌드 ${__BUILD__}</div>`;
+      <div class="ver">v2.2 · 빌드 ${__BUILD__}</div>`;
   }
 
   /* ---------- characters ---------- */
@@ -148,6 +150,7 @@ export class MenuUI {
     const owned = save.owned.includes(c.id);
     const selected = save.character === c.id;
     const mySkins = CHAR_SKINS.filter((k) => k.char === c.id && !k.hackOnly);
+    const tag = (k) => (k.set === 'perse' ? '🏛️' : '🎄');
     $('char-detail').innerHTML = `
       <div class="d-name">${c.name}<span class="rbadge" style="background:${r.color}">${r.name}</span></div>
       <div class="d-title">${c.title}</div>
@@ -165,8 +168,8 @@ export class MenuUI {
       ${!mySkins.length ? '' : isHack() ? '<div class="hint">👕 왼쪽 목록의 캐릭터 사진을 누르면 스킨을 볼 수 있어요</div>' : `<div class="skin-row outfit-row"><span>스킨</span>
         <button class="skin-opt ${!outfitFor(c.id) ? 'on' : ''}" data-o="">기본</button>
         ${mySkins.map((k) => save.ownedOutfits.includes(k.id)
-          ? `<button class="skin-opt xmas ${outfitFor(c.id) === k.id ? 'on' : ''}" data-o="${k.id}">🎄 ${k.name}</button>`
-          : `<button class="skin-opt xmas locked" data-peek="${k.id}" title="눌러서 미리보기">🔒 🎄 ${k.name} · 12월 출시</button>`).join('')}</div>`}`;
+          ? `<button class="skin-opt ${k.set} ${outfitFor(c.id) === k.id ? 'on' : ''}" data-o="${k.id}">${tag(k)} ${k.name}</button>`
+          : `<button class="skin-opt ${k.set} locked" data-peek="${k.id}" title="눌러서 미리보기">🔒 ${tag(k)} ${k.name} · ${k.set === 'perse' ? '시즌 번들' : '12월 출시'}</button>`).join('')}</div>`}`;
     $('char-detail').querySelectorAll('[data-o]').forEach((b) => (b.onclick = () => {
       if (b.dataset.o) save.outfits[c.id] = b.dataset.o; else delete save.outfits[c.id];
       persist();
@@ -174,7 +177,8 @@ export class MenuUI {
     }));
     $('char-detail').querySelectorAll('[data-peek]').forEach((b) => (b.onclick = () => {
       this.setPreviewCharacter(c, b.dataset.peek);
-      this.toast(`🎄 ${getCharSkin(b.dataset.peek).name} — 12월에 출시돼요! (미리보기)`);
+      const k = getCharSkin(b.dataset.peek);
+      this.toast(k.set === 'perse' ? `🏛️ ${k.name} — 상점 › 시즌 번들에서 얻을 수 있어요 (미리보기)` : `🎄 ${k.name} — 12월에 출시돼요! (미리보기)`);
     }));
     $('char-emote').onclick = () => this.playEmote();
     $('char-action').onclick = (e) => {
@@ -269,7 +273,7 @@ export class MenuUI {
     });
     if (WEAPONS[this.viewWeapon]?.cat !== this.viewCat) this.viewWeapon = save.loadout[this.viewCat];
     for (const id of CATEGORY_ORDER[this.viewCat]) {
-      if (WEAPONS[id].hackOnly && !isHack()) continue;
+      if (WEAPONS[id].hackOnly && !isHack()) continue; // (none right now)
       const w = WEAPONS[id];
       const r = RARITY[w.rarity];
       const owned = save.ownedWeapons.includes(id);
@@ -279,7 +283,7 @@ export class MenuUI {
       el.innerHTML = `
         <div class="swatch wicon" style="background:linear-gradient(135deg, #1c2638, ${r.color}55)">${icons[id] ? `<img src="${icons[id]}" alt="">` : KIND_ICON[w.kind]}</div>
         <div><div class="cname">${w.name}</div><div class="csub">${r.name}</div></div>
-        <div class="cright">${save.loadout[w.cat] === id ? '<span class="equipped">장착됨</span>' : owned ? '보유' : w.price ? `🔒 ◆ ${priceOf(id).toLocaleString()}${dealOf(id) ? ` <span class="deal-tag">-${dealOf(id).off}%</span>` : ''}` : '무료'}</div>`;
+        <div class="cright">${save.loadout[w.cat] === id ? '<span class="equipped">장착됨</span>' : owned ? '보유' : notYet(w) ? '🔒 12월 출시' : w.price ? `🔒 ◆ ${priceOf(id).toLocaleString()}${dealOf(id) ? ` <span class="deal-tag">-${dealOf(id).off}%</span>` : ''}` : '무료'}</div>`;
       el.onclick = () => { this.viewWeapon = id; this.renderWeapons(); };
       list.appendChild(el);
     }
@@ -303,16 +307,19 @@ export class MenuUI {
         <div>방식<b>${mode}</b></div>
       </div>
       ${this.skinRow(w)}
-      <button id="weapon-action" class="btn primary small" ${equipped ? 'disabled' : ''}>
-        ${equipped ? `${catName}에 장착됨` : owned ? `${catName}에 장착` : `구매하기 ◆ ${priceOf(w.id).toLocaleString()}${dealOf(w.id) ? ` (🔥 -${dealOf(w.id).off}%)` : ''}`}
+      <button id="weapon-action" class="btn primary small" ${equipped || (!owned && notYet(w)) ? 'disabled' : ''}>
+        ${equipped ? `${catName}에 장착됨` : owned ? `${catName}에 장착` : notYet(w) ? '🔒 12월부터 코인으로 구매 가능' : `구매하기 ◆ ${priceOf(w.id).toLocaleString()}${dealOf(w.id) ? ` (🔥 -${dealOf(w.id).off}%)` : ''}`}
       </button>
-      ${owned ? '' : `<div class="hint">구매 후 [장착]을 누르면 ${catName} 슬롯에 들어갑니다.</div>`}`;
+      ${owned ? '' : notYet(w) ? '<div class="hint">지금은 🏛️ 시즌 패스 50레벨 보상으로 받을 수 있어요</div>' : `<div class="hint">구매 후 [장착]을 누르면 ${catName} 슬롯에 들어갑니다.</div>`}`;
     $('weapon-action').onclick = (e) => {
       if (owned) {
         save.loadout[w.cat] = w.id;
         audio.init();
         audio.magIn();
         this.toast(`${catName}: ${w.name} 장착 완료`);
+      } else if (notYet(w)) {
+        this.toast('🔒 테이저건은 12월부터 코인으로 살 수 있어요');
+        return;
       } else if (save.coins >= priceOf(w.id)) {
         save.coins -= priceOf(w.id);
         save.ownedWeapons.push(w.id);
@@ -359,15 +366,12 @@ export class MenuUI {
   renderShop() {
     const list = $('shop-list');
     let html;
-    if (isHack()) {
-      // v2.1 (hack only): "bundles" and "season bundles" tabs
+    {
+      // "bundles" and "season bundles" tabs
       const tab = this.shopTab === 'season' ? 'season' : 'bundles';
       const pick = BUNDLES.filter((b) => (tab === 'season' ? b.season : !b.season)).sort((a, b) => !!a.soon - !!b.soon);
       html = `<div class="shop-tabs"><button class="shop-tab ${tab === 'bundles' ? 'on' : ''}" data-tab="bundles">번들</button><button class="shop-tab ${tab === 'season' ? 'on' : ''}" data-tab="season">시즌 번들 🏛️</button></div>` +
         (tab === 'bundles' ? this.dealsHtml() : '') + pick.map((b) => this.bundleHtml(b)).join('');
-    } else {
-      const shown = BUNDLES.filter((b) => !b.hackOnly);
-      html = [...shown.filter((b) => b.soon), ...shown.filter((b) => !b.soon)].map((b) => this.bundleHtml(b)).join('');
     }
     list.innerHTML = html;
     list.querySelectorAll('.shop-tab').forEach((t) => (t.onclick = () => { this.shopTab = t.dataset.tab; this.renderShop(); list.scrollTop = 0; }));

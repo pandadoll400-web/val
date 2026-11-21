@@ -10,10 +10,9 @@ import { WEAPONS } from '../data/weapons.js';
 import { getWeaponIcon } from '../game/gunModels.js';
 import { getPortrait } from './ui.js';
 import { audio } from '../audio.js';
-import { currentUser } from '../net/auth.js';
 
-/** the season pass is on the "hack" account only for now */
-export const passOn = () => (currentUser()?.nick || '').toLowerCase() === 'hack';
+/** the season pass is open to everyone (v2.2) */
+export const passOn = () => true;
 
 const $ = (id) => document.getElementById(id);
 let onLevelUp = null;

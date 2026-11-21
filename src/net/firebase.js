@@ -2,7 +2,7 @@
 import { initializeApp } from 'firebase/app';
 import {
   getDatabase, ref, set, get, update, remove, push, onValue, onChildAdded, onChildChanged, onChildRemoved, off,
-  onDisconnect, runTransaction, serverTimestamp, query, orderByChild, startAt,
+  onDisconnect, runTransaction, serverTimestamp, query, orderByChild, startAt, limitToLast,
 } from 'firebase/database';
 
 const firebaseConfig = {
@@ -44,5 +44,5 @@ export const isPermissionError = (e) => /permission/i.test(String(e?.code || e?.
 
 export {
   ref, set, get, update, remove, push, onValue, onChildAdded, onChildChanged, onChildRemoved, off,
-  onDisconnect, runTransaction, serverTimestamp, query, orderByChild, startAt,
+  onDisconnect, runTransaction, serverTimestamp, query, orderByChild, startAt, limitToLast,
 };

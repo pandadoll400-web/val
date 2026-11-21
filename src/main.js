@@ -14,6 +14,8 @@ import { IS_TOUCH } from './game/touch.js';
 import { AdventUI } from './menu/advent.js';
 import { MissionsUI } from './menu/missions.js';
 import { PassUI } from './menu/pass.js';
+import { RankUI } from './menu/rank.js';
+import { FriendsUI } from './menu/friends.js';
 
 const canvas = document.getElementById('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -75,6 +77,19 @@ const room = new RoomUI({
   },
 });
 window.__room = room;
+
+// 🏆 rank + 👥 friends buttons under the season pass
+{
+  const row = document.createElement('div');
+  row.className = 'social-row';
+  row.innerHTML = '<button id="rank-btn" class="btn ghost">🏆 랭크</button><button id="friends-btn" class="btn ghost">👥 친구</button>';
+  document.getElementById('pass-btn').after(row);
+  const friends = new FriendsUI({ ui, room, inGame: () => !!game });
+  const rank = new RankUI({ ui, friends });
+  document.getElementById('rank-btn').onclick = () => rank.open();
+  document.getElementById('friends-btn').onclick = () => friends.open();
+  window.__friends = friends; window.__rank = rank;
+}
 
 // the selected character standing in the empty right side of the main menu
 const menuStage = new CharStage();

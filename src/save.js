@@ -21,6 +21,7 @@ const DEFAULT = {
   title: '',
   royal: false,
   royalGot: {},
+  rp: 0,
 };
 
 function load() {
@@ -82,6 +83,7 @@ function normalize(save) {
   if (save.season !== 'perse') { save.season = 'perse'; save.xp = 0; save.passGot = {}; save.royal = false; save.royalGot = {}; }
   if (!save.royalGot || typeof save.royalGot !== 'object') save.royalGot = {};
   if (save.title && !save.titles.includes(save.title)) save.title = '';
+  save.rp = Math.max(0, Math.round(+save.rp || 0));
   return save;
 }
 

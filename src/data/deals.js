@@ -10,7 +10,7 @@ function seedOf(str) { let s = 7; for (const ch of str) s = (s * 31 + ch.charCod
 
 export function dealsFor(owned, date = todayStr()) {
   const rnd = mulberry32(seedOf('deal' + date));
-  const ids = Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !WEAPONS[id].hackOnly);
+  const ids = Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !WEAPONS[id].hackOnly && !WEAPONS[id].noDeal);
   const off = {};
   for (const id of ids) off[id] = [30, 40, 50][Math.floor(rnd() * 3)];
   for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }

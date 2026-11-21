@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mulberry32 } from '../util/noise.js';
-import { makeTree, makeMushroom, makeBush, makeFlowers, makeHive, makeHiveBox, makeReeds, makePine, makeCactus, makePalm, honeycombTexture } from './themes.js';
+import { makeTree, makeMushroom, makeBush, makeFlowers, makeHive, makeHiveBox, makeReeds, makePine, makeCactus, makePalm, makeUrn, honeycombTexture } from './themes.js';
 
 /**
  * Per-map layouts. Every map has its own structure (online play is fine: everyone loads meta.map).
@@ -735,4 +735,120 @@ export const MAP_LAYOUTS = {
       if (big) { o.traverse((m) => { if (m.isMesh) { w.solids.push(m); w.cover.push(m); } }); w.addCollider(new THREE.Box3(new THREE.Vector3(x - 0.3, 0, z - 0.3), new THREE.Vector3(x + 0.3, 3, z + 0.3))); }
     }, 2);
   },
+  /* v2.2 Persepolis: a raised Apadana terrace with a column hall, two gates with lamassu, ruins.
+     Point-symmetric ((x, z) → (−x, −z)) so both teams get the same map. */
+  perse(w) {
+    w.teamSpawns = { A: [0, 77, 0], B: [0, -77, Math.PI], C: [30, 2, Math.PI / 2] };
+    const stone = new THREE.MeshStandardMaterial({ map: brickTexture('#dcc4a2', '#a88a62', 3, 4, 16), roughness: 0.85 });
+    stone.map.repeat.set(3, 2);
+    const dark = smat('perseDark', { color: '#5a4a3e', roughness: 0.6, metalness: 0.1 });
+    const gold = smat('perseGold', { color: '#ffcf5a', metalness: 0.9, roughness: 0.3, emissive: '#5a3a00', emissiveIntensity: 0.2 });
+    const lapis = smat('perseLapis', { color: '#1f3fa8', roughness: 0.4, emissive: '#0a1a5a', emissiveIntensity: 0.3 });
+    const relief = new THREE.MeshStandardMaterial({ map: reliefTexture(), roughness: 0.85 });
+    const solid = (m) => { m.castShadow = true; m.receiveShadow = true; w.scene.add(m); w.solids.push(m); w.cover.push(m); return m; };
+    const both = (fn) => { fn(1); fn(-1); }; // s = 1 and the point-mirrored copy
+
+    // ---- Apadana: terrace 24×20, 2.25 m high, stairs on all four sides (step 0.45)
+    const TH = 2.25;
+    w.addBlock(0, 0, 0, 24, TH, 20, stone);
+    for (let i = 0; i < 5; i++) {
+      const h = 0.45 * (i + 1);
+      both((s) => w.addBlock(0, 0, s * (14.5 - i), 7, h, 1, stone));       // south / north stairs
+      both((s) => w.addBlock(s * (16.5 - i), 0, 0, 1, h, 6, stone));       // east / west stairs
+    }
+    // gold-lapis frieze along the terrace front
+    both((s) => { const f = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.5, 0.06), relief); f.position.set(s * 8, 1.3, s * 10.04); f.rotation.y = s > 0 ? 0 : Math.PI; w.scene.add(f); });
+    // column hall on top: 4×3 columns with double-bull capitals
+    for (const x of [-9, -3, 3, 9]) for (const z of [-6, 0, 6]) {
+      if (x === 3 && z === 0 || x === -3 && z === 0) continue; // open middle
+      const H = 6;
+      solid(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, H, 14), stone)).position.set(x, TH + H / 2, z);
+      solid(new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.3, 14), stone)).position.set(x, TH + 0.15, z);
+      const cap = solid(new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.7, 0.8), dark)); cap.position.set(x, TH + H + 0.35, z);
+      for (const sx of [-1, 1]) solid(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.6, 0.9), gold)).position.set(x + sx * 1.0, TH + H + 0.75, z);
+      w.addCollider(new THREE.Box3(new THREE.Vector3(x - 0.6, TH, z - 0.6), new THREE.Vector3(x + 0.6, TH + H + 1, z + 0.6)));
+    }
+    // a throne dais in the open middle (low cover)
+    w.addBlock(0, TH, 0, 4, 0.9, 1.6, stone);
+    solid(new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.6, 0.25), gold)).position.set(0, TH + 1.7, -0.5);
+
+    // ---- Gates of All Nations (south of centre for A, north for B) with lamassu
+    both((s) => {
+      const z = s * 48;
+      for (const sx of [-1, 1]) w.addBlock(sx * 3.6, 0, z, 2.4, 7.5, 3, stone);
+      const lintel = solid(new THREE.Mesh(new THREE.BoxGeometry(9.6, 1.2, 3.2), stone)); lintel.position.set(0, 8.1, z);
+      w.addCollider(new THREE.Box3().setFromObject(lintel));
+      solid(new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.25, 0.1), lapis)).position.set(0, 7.3, z + s * 1.62);
+      for (const sx of [-1, 1]) lamassu(w, sx * 7.4, z, s, stone, gold, solid);
+    });
+
+    // ---- ruins: broken columns, relief walls, crates and urns (all mirrored)
+    both((s) => {
+      for (const [x, z, h] of [[20, 30, 3.2], [8, 30, 1.2], [24, 4, 2.4], [-20, 26, 1.6], [-8, 34, 2.8], [14, 62, 2], [-24, 60, 1.4]]) {
+        const X = s * x, Z = s * z;
+        solid(new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.65, h, 12), stone)).position.set(X, h / 2, Z);
+        w.addCollider(new THREE.Box3(new THREE.Vector3(X - 0.65, 0, Z - 0.65), new THREE.Vector3(X + 0.65, h, Z + 0.65)));
+      }
+      const drum = solid(new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 1.4, 12), stone)); drum.rotation.z = Math.PI / 2; drum.position.set(s * 14, 0.6, s * 26);
+      w.addCollider(new THREE.Box3(new THREE.Vector3(s * 14 - 0.7, 0, s * 26 - 0.6), new THREE.Vector3(s * 14 + 0.7, 1.2, s * 26 + 0.6)));
+      for (const [x, z, sx, sz] of [[16, 18, 7, 0.7], [-18, 16, 0.7, 6], [26, 40, 0.7, 8], [-6, 60, 8, 0.7], [-27, -2, 0.7, 7]]) {
+        const m = w.addBlock(s * x, 0, s * z, sx, 1.5, sz, relief);
+        m.material = relief;
+      }
+      w.addCrate(s * 12, 0, s * 40, 2); w.addCrate(s * 13.8, 0, s * 40.4, 1.6); w.addCrate(s * -14, 0, s * 52, 2);
+      w.addCrate(s * 28, 0, s * 20, 1.8); w.addCrate(s * -26, 0, s * 36, 2);
+    });
+    // two small palace buildings (one with stairs to a walled roof)
+    addHouse(w, -22, 42, 9, 8, 5.2, { wallMat: stone, roofMat: stone, door: ['e', 's'], parapet: true, stairs: 'w', rug: '#1f3fa8' });
+    addHouse(w, 22, -42, 9, 8, 5.2, { wallMat: stone, roofMat: stone, door: ['w', 'n'], parapet: true, stairs: 'e', rug: '#1f3fa8' });
+    // palms and cypresses along the processional way
+    for (const [x, z] of [[-6, 24], [6, 24], [-6, 64], [6, 64]]) both((s) => addTree(w, s * x, s * z, s > 0 ? makePalm : makePine, s > 0 ? 1.1 : 1.3));
+    scatter(w, 30, 83, (x, z, r) => { const o = makeUrn(r, 1 + r() * 0.8); o.position.set(x, 0, z); o.rotation.y = r() * 6; w.scene.add(o); }, 1.4);
+  },
 };
+
+/** relief wall texture: a procession of figures in a frieze */
+function reliefTexture() {
+  if (shared.relief) return shared.relief;
+  const S = 256, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  g.fillStyle = '#d8c09a'; g.fillRect(0, 0, S, S);
+  g.fillStyle = '#b89a72'; g.fillRect(0, 0, S, 18); g.fillRect(0, S - 18, S, 18);
+  for (let row = 0; row < 2; row++) {
+    const y0 = 30 + row * 108;
+    for (let i = 0; i < 6; i++) {
+      const x = 14 + i * 42;
+      g.fillStyle = 'rgba(110,80,50,.55)';
+      g.fillRect(x, y0 + 18, 16, 56);                         // robe
+      g.beginPath(); g.arc(x + 8, y0 + 10, 8, 0, 7); g.fill(); // head
+      g.fillRect(x + 4, y0 - 6, 8, 8);                        // tall hat
+      g.fillRect(x + 16, y0 + 30, 10, 4);                     // arm with gift
+      g.fillStyle = 'rgba(255,207,90,.7)'; g.fillRect(x + 24, y0 + 26, 6, 8);
+    }
+  }
+  g.strokeStyle = 'rgba(31,63,168,.6)'; g.lineWidth = 4; g.strokeRect(2, 2, S - 4, S - 4);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return (shared.relief = t);
+}
+
+/** winged bull guardian standing by a gate, facing away from it (dir = ±1 along z) */
+function lamassu(w, x, z, dir, stone, gold, solid) {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  g.rotation.y = dir > 0 ? 0 : Math.PI;
+  w.scene.add(g);
+  const part = (geo, m, px, py, pz) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); o.castShadow = true; g.add(o); w.solids.push(o); w.cover.push(o); return o; };
+  part(new THREE.BoxGeometry(1.6, 1.2, 3.6), stone, 0, 0.6, 0);            // plinth
+  part(new THREE.BoxGeometry(1.4, 1.8, 3.2), stone, 0, 2.1, 0);            // body
+  for (const lx of [-0.45, 0.45]) for (const lz of [-1.2, 1.2]) part(new THREE.BoxGeometry(0.35, 0.9, 0.35), stone, lx, 0.75, lz);
+  part(new THREE.BoxGeometry(1.0, 1.3, 1.0), stone, 0, 3.4, 1.7);          // human head
+  part(new THREE.CylinderGeometry(0.45, 0.5, 0.8, 10), gold, 0, 4.4, 1.7); // crown
+  part(new THREE.BoxGeometry(0.9, 0.7, 0.3), stone, 0, 2.7, 2.2);          // beard
+  for (const sx of [-1, 1]) {
+    const wing = part(new THREE.BoxGeometry(0.12, 1.6, 2.8), gold, sx * 0.75, 3.2, -0.2);
+    wing.rotation.x = -0.35;
+  }
+  w.addCollider(new THREE.Box3(new THREE.Vector3(x - 0.9, 0, z - 2.3), new THREE.Vector3(x + 0.9, 4.8, z + 2.3)));
+}
