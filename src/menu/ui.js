@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { save, persist, outfitFor, randomCharSkin } from '../save.js';
 import { CHAR_SKINS, getCharSkin } from '../data/charSkins.js';
-import { CHARACTERS, RARITY, getCharacter } from '../data/characters.js';
+import { CHARACTERS, RARITY, getCharacter, EARLY, earlyOn } from '../data/characters.js';
 import { WEAPONS, CATEGORIES, CATEGORY_ORDER, getWeapon } from '../data/weapons.js';
 import { makeSoldier } from '../game/soldier.js';
 import { buildGun, getWeaponIcons, getWeaponIcon } from '../game/gunModels.js';
@@ -117,12 +117,13 @@ export class MenuUI {
   refresh() {
     $('coin-count').textContent = save.coins.toLocaleString();
     this.onRefresh?.();
-    if (getCharacter(save.character).hackOnly && !isHack()) { save.character = 'rookie'; if (this.viewChar === 'chaos') this.viewChar = 'rookie'; }
+    { const cc = getCharacter(save.character); if (cc.shopOnly && !save.owned.includes(cc.id) && !isHack()) save.character = 'rookie'; }
+    if (getCharacter(this.viewChar || 'rookie').shopOnly && !save.owned.includes(this.viewChar) && !isHack()) this.viewChar = save.character;
     const c = getCharacter(save.character), lo = save.loadout;
     const wn = (id) => `<b style="color:${RARITY[WEAPONS[id].rarity].color}">${WEAPONS[id].name}</b>`;
     $('loadout-chip').innerHTML = `캐릭터 <b>${c.name}</b> <span style="color:${RARITY[c.rarity].color}">(${RARITY[c.rarity].name})</span>
       · 무기 ${wn(lo.primary)} / ${wn(lo.secondary)} / ${wn(lo.sidearm)}
-      <div class="ver">v2.3 · 빌드 ${__BUILD__}</div>`;
+      <div class="ver">v2.3.1 · 빌드 ${__BUILD__}</div>`;
   }
 
   /* ---------- characters ---------- */
@@ -130,7 +131,7 @@ export class MenuUI {
     const list = $('char-list');
     list.innerHTML = '';
     for (const c of CHARACTERS) {
-      if (c.hackOnly && !isHack()) continue;
+      if (c.shopOnly && !save.owned.includes(c.id) && !isHack()) continue; // shop-only (early access) characters show up once bought
       const r = RARITY[c.rarity];
       const owned = save.owned.includes(c.id);
       const el = document.createElement('button');
@@ -185,6 +186,7 @@ export class MenuUI {
     $('char-emote').onclick = () => this.playEmote();
     $('char-action').onclick = (e) => {
       if (owned) save.character = c.id;
+      else if (c.shopOnly) { this.toast('🛒 상점에서만 구매할 수 있어요'); return; }
       else if (save.coins >= c.price) {
         save.coins -= c.price;
         save.owned.push(c.id);
@@ -370,14 +372,66 @@ export class MenuUI {
     let html;
     {
       // "bundles" and "season bundles" tabs
-      const tab = this.shopTab === 'season' ? 'season' : 'bundles';
-      const pick = BUNDLES.filter((b) => (tab === 'season' ? b.season : !b.season)).sort((a, b) => !!a.soon - !!b.soon);
-      html = `<div class="shop-tabs"><button class="shop-tab ${tab === 'bundles' ? 'on' : ''}" data-tab="bundles">번들</button><button class="shop-tab ${tab === 'season' ? 'on' : ''}" data-tab="season">시즌 번들 🏛️</button></div>` +
-        (tab === 'bundles' ? this.dealsHtml() : '') + pick.map((b) => this.bundleHtml(b)).join('');
+      const early = earlyOn();
+      const tab = this.shopTab === 'season' ? 'season' : (this.shopTab || 'newchar') === 'newchar' && early ? 'newchar' : 'bundles';
+      const pick = tab === 'newchar' ? [] : BUNDLES.filter((b) => (tab === 'season' ? b.season : !b.season)).sort((a, b) => !!a.soon - !!b.soon);
+      html = `<div class="shop-tabs">${early ? `<button class="shop-tab new ${tab === 'newchar' ? 'on' : ''}" data-tab="newchar">신규 캐릭터! 🆕</button>` : ''}<button class="shop-tab ${tab === 'bundles' ? 'on' : ''}" data-tab="bundles">번들</button><button class="shop-tab ${tab === 'season' ? 'on' : ''}" data-tab="season">시즌 번들 🏛️</button></div>` +
+        (tab === 'newchar' ? this.newCharHtml() : '') + (tab === 'bundles' ? this.dealsHtml() : '') + pick.map((b) => this.bundleHtml(b)).join('');
     }
     list.innerHTML = html;
     list.querySelectorAll('.shop-tab').forEach((t) => (t.onclick = () => { this.shopTab = t.dataset.tab; this.renderShop(); list.scrollTop = 0; }));
     this.bindShop(list);
+  }
+
+  /** 신규 캐릭터! tab: early-access card for Chaos */
+  newCharHtml() {
+    const c = getCharacter(EARLY.char), r = RARITY[c.rarity];
+    const owned = save.owned.includes(c.id);
+    const face = getPortrait(c);
+    return `<section class="bundle newchar">
+      <div class="b-ribbon" style="background:linear-gradient(90deg,#7a5cff,#ffcf5a)">⚡ 얼리 액세스</div>
+      <div class="nc-top">
+        <div class="nc-face" style="background:linear-gradient(135deg, ${c.color}, ${c.accent})">${face ? `<img src="${face}" alt="">` : c.name[0]}</div>
+        <div class="nc-info">
+          <div class="b-title">⏳ ${c.name} <span class="rbadge" style="background:${r.color}">${r.name}</span></div>
+          <div class="b-tag">${c.title}</div>
+          <div class="b-desc">${c.desc}</div>
+        </div>
+      </div>
+      <div class="nc-skills">${['q', 'e'].map((k) => `<div><b><span class="k">${k.toUpperCase()}</span> ${c[k].name}</b><small>${c[k].desc}</small></div>`).join('')}</div>
+      <div class="nc-time">📅 11월 30일까지만 판매 · <b id="early-left">${this.earlyLeftText()}</b></div>
+      <div class="nc-bonus">🎁 번들 보너스: 구매하면 <b>◆ ${EARLY.bonus}</b> 지급</div>
+      <div class="b-foot">
+        <div class="b-price">${owned ? '보유 중' : `<s>◆ ${EARLY.was.toLocaleString()}</s> ◆ ${EARLY.price.toLocaleString()}`}</div>
+        <button class="btn primary small nc-buy" ${owned ? 'disabled' : ''}>${owned ? '구매 완료' : '얼리 액세스 구매'}</button>
+      </div>
+      ${owned ? '<div class="hint">캐릭터 탭에서 카오스를 선택할 수 있어요</div>' : '<div class="hint">카오스는 이 상점에서만 살 수 있어요 (캐릭터 탭 판매 없음)</div>'}
+    </section>`;
+  }
+
+  earlyLeftText() {
+    const s = Math.max(0, Math.floor((EARLY.until - Date.now()) / 1000));
+    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    return `판매 종료까지 ${d ? d + '일 ' : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')} 남음`;
+  }
+
+  buyEarly(btn) {
+    const c = getCharacter(EARLY.char);
+    if (!earlyOn() || save.owned.includes(c.id)) return;
+    if (save.coins < EARLY.price) {
+      this.shake(btn);
+      this.toast(`코인이 부족합니다 (◆ ${(EARLY.price - save.coins).toLocaleString()} 더 필요)`);
+      return;
+    }
+    save.coins += EARLY.bonus - EARLY.price;
+    save.owned.push(c.id);
+    save.character = c.id;
+    this.viewChar = c.id;
+    persist();
+    audio.init(); audio.kill();
+    this.toast(`⏳ ${c.name} 획득! 번들 보너스 ◆${EARLY.bonus} — 캐릭터 탭에서 선택되었어요`);
+    this.refresh();
+    this.renderShop();
   }
 
   bundleOwned(b) {
@@ -414,12 +468,15 @@ export class MenuUI {
 
   bindShop(list) {
     list.querySelectorAll('.b-buy').forEach((btn) => (btn.onclick = () => this.buyBundle(btn.dataset.b, btn)));
+    list.querySelectorAll('.nc-buy').forEach((btn) => (btn.onclick = () => this.buyEarly(btn)));
     list.querySelectorAll('.deal-buy').forEach((btn) => (btn.onclick = (e) => { e.stopPropagation(); this.buyDeal(btn.dataset.w, btn); }));
     list.querySelectorAll('.deal-card').forEach((el) => (el.onclick = () => this.openShopPreview(null, el.dataset.w)));
     clearInterval(this._dealTimer);
     this._dealTimer = setInterval(() => {
-      const el = $('deal-left');
-      if (!el || this.openId !== 'panel-shop') { clearInterval(this._dealTimer); return; }
+      const el = $('deal-left'), ea = $('early-left');
+      if ((!el && !ea) || this.openId !== 'panel-shop') { clearInterval(this._dealTimer); return; }
+      if (ea) { if (!earlyOn()) { this.renderShop(); return; } ea.textContent = this.earlyLeftText(); }
+      if (!el) return;
       const s = dealSecondsLeft();
       if (s <= 0) { this.renderShop(); return; }
       el.textContent = `${Math.floor(s / 3600)}시간 ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}분 ${String(s % 60).padStart(2, '0')}초 남음`;

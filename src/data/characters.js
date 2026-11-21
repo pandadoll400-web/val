@@ -115,7 +115,7 @@ export const CHARACTERS = [
     e: { name: '자전거', desc: '10초간 자전거를 탄다 — 이동속도 1.7배, 사격 불가, 부딪힐 때마다 50 피해 (E로 일찍 내리기)', cd: 22 },
   },
   {
-    id: 'chaos', name: '카오스', title: '시간의 마술사', rarity: 'mythic', price: 0, hackOnly: true,
+    id: 'chaos', name: '카오스', title: '시간의 마술사', rarity: 'mythic', price: 0, shopOnly: true,
     color: '#3a2a7a', accent: '#ffcf5a',
     desc: '흐르는 시간을 비트는 마술사. 실수는 되돌리고, 적의 시간은 멈춰 세운다.',
     q: { name: '되감기', desc: '3초 전의 위치와 체력으로 돌아간다 (체력은 그때가 더 많을 때만)', cd: 14 },
@@ -127,4 +127,8 @@ export const CHARACTERS = [
 const RARITY_PRICE = { common: 0, rare: 2500, epic: 5000, legendary: 10000, mythic: 15000, infinity: 30000 };
 for (const c of CHARACTERS) if (c.id !== 'rookie') c.price = RARITY_PRICE[c.rarity];
 
-export const getCharacter = (id) => CHARACTERS.find((c) => c.id === id) || CHARACTERS[0];
+/** shop "신규 캐릭터!" early access: Chaos until the end of 30 November (local time), 15000 → 14000 + 500 coins back */
+export const EARLY = { char: 'chaos', price: 14000, was: 15000, bonus: 500, until: new Date(2026, 11, 1, 0, 0, 0).getTime() };
+export const earlyOn = () => Date.now() < EARLY.until;
+
+export const getCharacter =(id) => CHARACTERS.find((c) => c.id === id) || CHARACTERS[0];
