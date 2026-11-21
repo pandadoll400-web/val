@@ -718,7 +718,13 @@ body.touch-mode #crosshair { transform: translate(-50%, -50%) scale(.9); }
 .skill.silenced .sk-time { font-size: 13px; color: #d6b8ff; }
 
 /* ---------- v2.0: season pass ---------- */
-.pass-btn { left: 148px; gap: 7px; }
+.pass-btn { max-width: 362px; width: 100%; height: 46px; margin-top: 10px; display: flex; align-items: center; gap: 10px; padding: 0 16px; font-size: 15px; font-weight: 900;
+  background: linear-gradient(90deg, rgba(31,63,168,.45), rgba(14,22,40,.55)); border-color: rgba(255,207,90,.55); }
+.pass-btn .pb-name { white-space: nowrap; } .pass-btn .pb-lv { color: #ffcf5a; white-space: nowrap; }
+.pass-btn .pb-bar { flex: 1; width: auto !important; height: 7px !important; }
+.pass-btn.ready { background: linear-gradient(90deg, #ff9a3a, #ffcf4a); color: #1a1206; animation: advPulse 1.6s ease-in-out infinite; }
+.pass-btn.ready .pb-lv { color: #5a2a00; }
+.pass-btn.royal { border: 2px solid #ffcf5a; box-shadow: 0 0 14px rgba(255,207,90,.45); }
 .pass-btn .pb-bar, .xp-bar { display: inline-block; width: 46px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.18); overflow: hidden; vertical-align: middle; }
 .pass-btn .pb-bar i, .xp-bar i { display: block; height: 100%; background: linear-gradient(90deg, #7dffb0, #ffd24a); }
 .pass-card { width: min(760px, 94vw); background: radial-gradient(ellipse at 50% 0%, #1f5a34 0%, #0f1f2a 55%, #3a0a14 100%); }
@@ -775,3 +781,58 @@ b.ttl { color: #ffd24a; font-weight: 800; }
 .skin-card.peek { border-color: #ffd24a; box-shadow: 0 0 0 2px rgba(255,210,74,.3); }
 .skin-card.on .sk-state { color: #7dffb0; opacity: 1; font-weight: 800; }
 .skin-card.locked .sk-face { filter: grayscale(.4) brightness(.8); }
+
+/* ---------- v2.1: Persepolis pass, royal, shop tabs, tree ---------- */
+.pass-card { width: min(860px, 96vw); background: radial-gradient(ellipse at 50% 0%, #1f3fa8 0%, #0f1a3a 55%, #3a2a0a 100%); }
+.royal-box { margin: 4px 0 6px; }
+.royal-buy { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: linear-gradient(90deg, rgba(255,207,90,.25), rgba(255,207,90,.06)); border: 1px solid #ffcf5a; }
+.royal-buy > div { flex: 1; display: flex; flex-direction: column; gap: 3px; } .royal-buy b { color: #ffcf5a; font-size: 15px; } .royal-buy small { font-size: 11px; opacity: .9; line-height: 1.35; }
+.royal-buy .btn { white-space: nowrap; width: auto !important; flex: none !important; margin: 0 !important; padding: 8px 14px; }
+.royal-buy > div { min-width: 0; }
+.royal-on { padding: 8px 12px; border-radius: 12px; font-weight: 800; font-size: 13px; color: #1a1206; background: linear-gradient(90deg, #ffcf5a, #ffe9a8); text-align: center; }
+.royal-tag { color: #ffcf5a; font-weight: 900; font-size: 12px; }
+.pass-rows { display: flex; gap: 6px; }
+.pr-lab { flex: none; width: 22px; display: flex; flex-direction: column; justify-content: space-around; padding: 28px 0 52px; font-size: 11px; font-weight: 900; text-align: center; }
+.pr-lab span { writing-mode: vertical-rl; margin: 0 auto; }
+.menu-left:has(.pass-btn:not(.hidden)) { padding-top: 56px; }
+.pr-lab .r { color: #ffcf5a; }
+.pass-rows .pass-track { flex: 1; min-width: 0; }
+.pv { width: 112px; min-height: 0; gap: 6px; }
+.pbox { position: relative; width: 100%; min-height: 104px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 4px; border-radius: 10px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); }
+.pbox.royal { background: linear-gradient(160deg, rgba(255,207,90,.22), rgba(120,80,10,.15)); border-color: rgba(255,207,90,.6); }
+.pbox.locked { filter: grayscale(.6); opacity: .55; }
+.pbox.got { opacity: .5; }
+.pbox small { font-size: 10px !important; line-height: 1.25; flex: none !important; }
+.pbox .ok, .pbox .lk { position: absolute; top: 3px; right: 5px; font-style: normal; font-size: 12px; }
+.pbox .dupe { font-style: normal; color: #ffcf5a; }
+.rw-pic { width: 96px; height: 48px; display: grid; place-items: center; border-radius: 8px; background: rgba(0,0,0,.25); overflow: hidden; }
+.rw-pic img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.rw-pic.outfit img { height: 48px; }
+.rw-pic.coin span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; font-size: 18px; font-weight: 900; color: #5a3a00; background: radial-gradient(circle at 35% 30%, #fff3c0, #ffcf5a 55%, #c8901a); box-shadow: 0 0 10px rgba(255,207,90,.5); }
+.rw-pic.title span { font-size: 26px; filter: drop-shadow(0 0 6px rgba(255,207,90,.6)); }
+.rw-pic.weapon { background: radial-gradient(circle, rgba(180,92,255,.45), rgba(0,0,0,.25)); }
+.skin-opt.royal { border-color: #ffcf5a; color: #ffcf5a; }
+.skin-opt.royal.on { background: #ffcf5a; color: #1a1206; }
+em.lv.royal { background: linear-gradient(90deg, #ffcf5a, #fff1b8); box-shadow: 0 0 6px rgba(255,207,90,.7); }
+.shop-tabs { position: sticky; top: 0; z-index: 3; display: flex; gap: 6px; padding: 2px 0 8px; background: #0e1626; }
+.shop-tab { flex: 1; height: 36px; border-radius: 10px; font-weight: 900; font-size: 14px; color: #fff; cursor: pointer; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.18); }
+.shop-tab.on { background: linear-gradient(90deg, #ffcf5a, #ffa94a); color: #1a1206; border-color: transparent; }
+.bundle.perse { background: radial-gradient(ellipse at 50% 0%, #2a4ac8 0%, #12205a 50%, #3a2a08 100%); }
+.bundle.perse::before { background-image: linear-gradient(45deg, rgba(255,207,90,.12) 25%, transparent 25%, transparent 75%, rgba(255,207,90,.12) 75%), linear-gradient(-45deg, rgba(255,207,90,.12) 25%, transparent 25%, transparent 75%, rgba(255,207,90,.12) 75%); background-size: 26px 26px; }
+.bundle.perse .b-title { color: #ffe9a8; text-shadow: 0 0 12px #ffcf5a, 0 0 24px #3fe0d0; }
+.bundle.perse .b-weapons { grid-template-columns: repeat(3, 1fr); }
+.skin-card.perse { border-color: rgba(255,207,90,.6); background: linear-gradient(160deg, rgba(31,63,168,.5), rgba(255,207,90,.15)); }
+/* Christmas tree next to the calendar (hack) */
+.advent-pop.tree { grid-template-columns: auto auto; gap: 18px; justify-content: center; align-content: center; }
+.xtree { width: 190px; height: 300px; position: relative; }
+.xtree svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 10px 20px rgba(0,0,0,.5)); }
+.xtree .light { animation: treeBlink 1.2s ease-in-out infinite; }
+.xtree .light:nth-child(3n) { animation-delay: .4s; } .xtree .light:nth-child(3n+1) { animation-delay: .8s; }
+.xtree .star { transform-origin: 95px 22px; animation: starSpin 3s ease-in-out infinite; }
+@keyframes treeBlink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+@keyframes starSpin { 0%,100% { transform: scale(1); filter: drop-shadow(0 0 4px #ffd24a); } 50% { transform: scale(1.12); filter: drop-shadow(0 0 12px #ffd24a); } }
+@media (max-width: 760px) {
+  .advent-pop.tree { grid-template-columns: auto; }
+  .xtree { position: absolute; right: 6px; bottom: 6px; width: 90px; height: 140px; pointer-events: none; }
+  .pv { width: 100px; } .rw-pic { width: 86px; }
+}

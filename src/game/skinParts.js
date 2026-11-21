@@ -222,7 +222,36 @@ function xmas(model, m) {
   return (t) => balls.forEach((b, i) => { b.rotation.x = Math.sin(t * 2.4 + i * 1.7) * 0.25; b.rotation.z = Math.sin(t * 1.9 + i) * 0.15; });
 }
 
-const RECIPES = { aurora, inferno, cyber, xmas };
+/* v2.1 Persepolis: gold winged disc on both sides, gold muzzle rings, turquoise studs along the top */
+function perse(model, m) {
+  const g = model.group, s = m.s;
+  const gold = M('pgold', { color: '#ffcf5a', metalness: 1, roughness: 0.2, emissive: '#5a3a00', emissiveIntensity: 0.25 });
+  const lapis = M('plapis', { color: '#1f3fa8', metalness: 0.4, roughness: 0.3, emissive: '#0a1a5a', emissiveIntensity: 0.3 });
+  const turq = M('pturq', { color: '#3fe0d0', metalness: 0.3, roughness: 0.2, emissive: '#1fa89a', emissiveIntensity: 0.6 });
+  if (!m.melee) {
+    for (let i = 0; i < 2; i++) addA(g, new THREE.TorusGeometry(0.016 * s, 0.0035 * s, 8, 18), gold, m.muzzle.x, m.muzzle.y, m.muzzle.z + 0.006 + i * 0.014 * s);
+  }
+  // winged disc (faravahar-like) on each side
+  const z = zAt(m, 0.4), c = surf(m, z) || { y: (m.box.min.y + m.box.max.y) / 2, left: m.cx - m.size.x * 0.5, right: m.cx + m.size.x * 0.5 };
+  const discs = [];
+  for (const sx of [-1, 1]) {
+    const grp = new THREE.Group();
+    grp.position.set((sx > 0 ? c.right : c.left) + sx * 0.003, c.y, z);
+    grp.rotation.y = sx * Math.PI / 2;
+    g.add(grp);
+    add(grp, new THREE.CylinderGeometry(0.011 * s, 0.011 * s, 0.003, 18).rotateX(Math.PI / 2), lapis, 0, 0, 0);
+    add(grp, new THREE.TorusGeometry(0.011 * s, 0.0022 * s, 6, 18), gold, 0, 0, 0.001);
+    for (const wx of [-1, 1]) for (let k = 0; k < 3; k++) {
+      add(grp, new THREE.BoxGeometry(0.03 * s - k * 0.007 * s, 0.0035 * s, 0.002), gold, wx * (0.024 * s - k * 0.002 * s), 0.004 * s - k * 0.0045 * s, 0.001, 0, 0, wx * (0.18 + k * 0.08));
+    }
+    discs.push(grp);
+  }
+  // turquoise studs along the top
+  alongTop(m, 4, 0.25, 0.7).forEach((p) => addA(g, new THREE.OctahedronGeometry(0.006 * s), turq, p.x, p.y + 0.004 * s, p.z));
+  return (t) => discs.forEach((d) => (d.children[0].material.emissiveIntensity = 0.3 + Math.sin(t * 3) * 0.15));
+}
+
+const RECIPES = { aurora, inferno, cyber, xmas, perse };
 
 /** bolt the bundle's own parts onto a freshly built weapon model */
 export function addSkinParts(bundleId, weaponId, model) {

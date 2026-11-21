@@ -499,6 +499,27 @@ const LOOKS = {
     O.add(O.torso, box(0.1, 0.06, 0.5), scarf, 0.1, 0.62, 0.35, 'body', 0.3, 0.2, 0);
     for (const s of O.arms) O.add(s.hand, box(0.115, 0.125, 0.115), O.M('#5a3a20'), 0, -0.02, 0);
   },
+  /* v2.1 Persepolis bundle: police officer (Volt) */
+  police(O) {
+    O.body.color.set('#1a2a4a'); O.bodyDark.color.set('#0f1a30');
+    const navy = O.M('#141f38', { roughness: 0.55 }), gold = O.M('#ffd24a', { metalness: 0.9, roughness: 0.25 });
+    const shirt = O.M('#2c4a7a', { roughness: 0.6 }), black = O.M('#0d0d10', { roughness: 0.3, metalness: 0.3 });
+    O.add(O.torso, box(0.16, 0.2, 0.02), O.M('#dfe8f4'), 0, 0.56, -0.218);                                 // shirt collar
+    O.add(O.torso, box(0.05, 0.22, 0.02), navy, 0, 0.5, -0.226);                                          // tie
+    for (const s of [-1, 1]) O.add(O.torso, box(0.14, 0.03, 0.3), shirt, s * 0.2, 0.66, 0);               // shoulder straps
+    O.add(O.torso, starGeo(0.045, 0.02), gold, -0.12, 0.5, -0.225);                                         // chest badge
+    O.add(O.torso, box(0.08, 0.13, 0.05), black, 0.13, 0.52, -0.22);                                       // radio
+    O.add(O.torso, box(0.012, 0.08, 0.012), black, 0.15, 0.62, -0.22);                                     // radio antenna
+    belt(O, '#0d0d10', '#c8d0dc');
+    O.add(O.hips, box(0.08, 0.14, 0.1), black, 0.25, -0.02, 0);                                            // holster
+    for (const s of [-1, 1]) O.add(O.hips, box(0.06, 0.06, 0.06), black, s * 0.12, 0.07, -0.16);          // cuff pouches
+    // peaked police cap
+    O.hadd(new THREE.CylinderGeometry(0.19, 0.17, 0.12, 18), navy, 0, HAT_Y - 0.01, 0.02);
+    O.hadd(new THREE.CylinderGeometry(0.175, 0.175, 0.035, 18), O.M('#0b0b0e', { roughness: 0.3 }), 0, HAT_Y - 0.06, 0.02);
+    O.hadd(box(0.28, 0.02, 0.13), black, 0, HAT_Y - 0.08, -0.15, -0.25);                                   // visor
+    O.hadd(starGeo(0.035, 0.015), gold, 0, HAT_Y + 0.0, -0.17);                                            // cap badge
+    O.hadd(box(0.2, 0.012, 0.012), gold, 0, HAT_Y - 0.045, -0.165);                                        // gold cord
+  },
 };
 
 /* ---------------- poses ---------------- */

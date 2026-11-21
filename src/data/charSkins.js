@@ -20,6 +20,8 @@ export const CHAR_SKINS = [
   L('bloom', '트리 정원사 블룸', 'tree', '#1f7a36'),
   L('crick', '방울 사냥꾼 크릭', 'bells', '#1f6a3a'),
   L('biker', '썰매꾼 바이커', 'sleigh', '#8a1a22'),
+  // v2.1 Persepolis season bundle (hack account only for now)
+  { id: 'perse_volt', char: 'volt', name: '경찰관 볼트', look: 'police', sleeve: '#1a2a4a', set: 'perse', hackOnly: true },
 ];
 
 export const getCharSkin = (id) => CHAR_SKINS.find((s) => s.id === id) || null;

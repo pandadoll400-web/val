@@ -165,7 +165,7 @@ export class RoomUI {
     for (const s of slots) {
       const c = getCharacter(s.char);
       html.push(`<div class="room-slot t${s.team}"><span class="team">${teamLabel(s.team)}</span>
-        <span class="nm">${!s.bot && s.level ? `<em class="lv">Lv.${s.level}</em>` : ''}${s.name}${s.id === r.uid ? ' (나)' : ''}<small>${!s.bot && s.title ? `<b class="ttl">🎖️ ${s.title}</b> · ` : ''}${s.bot ? 'AI · ' : ''}${c.name}${!s.bot && s.v !== NET_VER ? ' · <b style="color:#ff6b6b">예전 버전</b>' : ''}</small></span>
+        <span class="nm">${!s.bot && s.level ? `<em class="lv${s.royal ? ' royal' : ''}">${s.royal ? '👑' : ''}Lv.${s.level}</em>` : ''}${s.name}${s.id === r.uid ? ' (나)' : ''}<small>${!s.bot && s.title ? `<b class="ttl">🎖️ ${s.title}</b> · ` : ''}${s.bot ? 'AI · ' : ''}${c.name}${!s.bot && s.v !== NET_VER ? ' · <b style="color:#ff6b6b">예전 버전</b>' : ''}</small></span>
         ${host && teamMode ? `<button data-act="swap" data-id="${s.id}" title="팀 바꾸기">⇄</button>` : ''}
         ${host && s.bot ? `<button class="del" data-act="del" data-id="${s.id}" title="AI 빼기">✕</button>` : ''}</div>`);
     }

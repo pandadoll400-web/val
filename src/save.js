@@ -19,6 +19,8 @@ const DEFAULT = {
   passGot: {},
   titles: [],
   title: '',
+  royal: false,
+  royalGot: {},
 };
 
 function load() {
@@ -76,13 +78,16 @@ function normalize(save) {
   if (!(save.xp >= 0)) save.xp = 0;
   if (!save.passGot || typeof save.passGot !== 'object') save.passGot = {};
   if (!Array.isArray(save.titles)) save.titles = [];
+  save.royal = save.royal === true;
+  if (save.season !== 'perse') { save.season = 'perse'; save.xp = 0; save.passGot = {}; save.royal = false; save.royalGot = {}; }
+  if (!save.royalGot || typeof save.royalGot !== 'object') save.royalGot = {};
   if (save.title && !save.titles.includes(save.title)) save.title = '';
   return save;
 }
 
 /** a character skin this save does not own yet (Bloom's comes from the Christmas calendar only) */
 export function randomCharSkin(s = save) {
-  const left = CHAR_SKINS.filter((k) => k.char !== 'bloom' && !s.ownedOutfits.includes(k.id));
+  const left = CHAR_SKINS.filter((k) => k.set === 'xmas' && k.char !== 'bloom' && !s.ownedOutfits.includes(k.id));
   return left.length ? left[Math.floor(Math.random() * left.length)] : null;
 }
 

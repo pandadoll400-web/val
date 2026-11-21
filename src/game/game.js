@@ -766,7 +766,7 @@ export class Game {
     const team = (t) => rows.filter((r) => r.p.team === t).sort((a, b) => b.s.k - a.s.k || a.s.d - b.s.d).map((r) => {
       const c = getCharacter(r.p.char), face = getPortrait(c);
       return `<tr class="${r.uid === net.uid ? 'me' : ''}">
-        <td class="kp">${face ? `<img src="${face}" alt="">` : ''}<span>${r.s.k === best && best > 0 ? '★ ' : ''}${r.p.level ? `<em class="lv">Lv.${r.p.level}</em>` : ''}${r.p.name}<small>${r.p.title ? `🎖️ ${r.p.title} · ` : ''}${c.name}</small></span></td>
+        <td class="kp">${face ? `<img src="${face}" alt="">` : ''}<span>${r.s.k === best && best > 0 ? '★ ' : ''}${r.p.level ? `<em class="lv${r.p.royal ? ' royal' : ''}">${r.p.royal ? '👑' : ''}Lv.${r.p.level}</em>` : ''}${r.p.name}<small>${r.p.title ? `🎖️ ${r.p.title} · ` : ''}${c.name}</small></span></td>
         <td>${r.s.k}</td><td>${r.s.d}</td><td>${r.s.a}</td></tr>`;
     }).join('');
     const my = this.myTeam, others = [...new Set(rows.map((r) => r.p.team))].filter((t) => t !== my).sort();

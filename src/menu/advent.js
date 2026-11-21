@@ -18,6 +18,27 @@ function today() {
   return { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() };
 }
 
+function treeSvg() {
+  const lights = [];
+  const cols = ['#ff3a4a', '#ffd24a', '#3fa8ff', '#ff7ad8', '#7dffb0'];
+  [[70, 70, 3], [55, 115, 4], [40, 165, 5], [28, 215, 6]].forEach(([x0, y, n], row) => {
+    for (let i = 0; i < n; i++) { const x = x0 + (i * (190 - 2 * x0)) / (n - 1); lights.push(`<circle class="light" cx="${x}" cy="${y + Math.sin(i * 1.7) * 6}" r="5" fill="${cols[(i + row) % 5]}"/>`); }
+  });
+  const balls = [[80, 95, '#d81e2a'], [118, 140, '#ffd24a'], [62, 190, '#3f7bff'], [128, 200, '#d81e2a'], [95, 160, '#e8e8f0']]
+    .map(([x, y, c]) => `<circle cx="${x}" cy="${y}" r="8" fill="${c}" stroke="#fff6" stroke-width="1.5"/>`).join('');
+  return `<div class="xtree" id="xtree"><svg viewBox="0 0 190 300">
+    <rect x="83" y="235" width="24" height="30" fill="#6a3a1a"/>
+    <polygon points="95,30 140,95 50,95" fill="#1f8a3a"/><polygon points="95,60 155,140 35,140" fill="#1a7a32"/>
+    <polygon points="95,95 170,190 20,190" fill="#16702c"/><polygon points="95,135 185,240 5,240" fill="#126226"/>
+    <path d="M55 95 Q95 110 140 92 M40 140 Q95 160 152 136 M25 190 Q95 212 168 186" stroke="#ffd24a" stroke-width="3" fill="none" opacity=".8"/>
+    ${balls}${lights.join('')}
+    <polygon class="star" points="95,6 101,19 115,20 104,29 108,43 95,35 82,43 86,29 75,20 89,19" fill="#ffd24a"/>
+    <rect x="30" y="258" width="38" height="32" rx="3" fill="#d81e2a"/><rect x="46" y="258" width="6" height="32" fill="#ffd24a"/>
+    <rect x="118" y="262" width="44" height="28" rx="3" fill="#3f7bff"/><rect x="137" y="262" width="6" height="28" fill="#fff"/>
+    <rect x="75" y="270" width="36" height="22" rx="3" fill="#2aa04a"/><rect x="90" y="270" width="6" height="22" fill="#ffd24a"/>
+  </svg></div>`;
+}
+
 export class AdventUI {
   constructor({ ui }) {
     this.ui = ui;
@@ -61,7 +82,15 @@ export class AdventUI {
     if (!$('advent-pop').classList.contains('hidden')) this.render();
   }
 
-  open() { this.render(); $('advent-pop').classList.remove('hidden'); }
+  open() {
+    this.render();
+    const pop = $('advent-pop');
+    // v2.1 (hack only): a Christmas tree stands next to the calendar
+    pop.classList.toggle('tree', isHack());
+    if (isHack() && !$('xtree')) pop.insertAdjacentHTML('beforeend', treeSvg());
+    $('xtree')?.classList.toggle('hidden', !isHack());
+    pop.classList.remove('hidden');
+  }
   close() { $('advent-pop').classList.add('hidden'); }
 
   state(day) {
@@ -94,7 +123,7 @@ export class AdventUI {
       this.ui.toast('🌲 메리 크리스마스! 트리 정원사 블룸 스킨을 받았어요 (캐릭터 탭 → 블룸)');
     } else if (day === 24) {
       const pool = [];
-      for (const b of BUNDLES) if (!b.soon) for (const w of b.weapons) if (!save.ownedSkins.includes(skinId(b.id, w))) pool.push(skinId(b.id, w));
+      for (const b of BUNDLES) if (!b.soon && !b.hackOnly) for (const w of b.weapons) if (!save.ownedSkins.includes(skinId(b.id, w))) pool.push(skinId(b.id, w));
       if (pool.length) {
         const sid = pool[Math.floor(Math.random() * pool.length)];
         const [bid, wid] = sid.split('_');

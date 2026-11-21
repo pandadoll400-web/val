@@ -305,6 +305,34 @@ export class Effects {
     else if (kind === 'inferno') this.fxInferno(pos);
     else if (kind === 'cyber') this.fxCyber(pos);
     else if (kind === 'xmas') this.fxXmas(pos);
+    else if (kind === 'perse') this.fxPerse(pos);
+  }
+
+  /** Persepolis: a golden winged disc rises and turns, with gold dust spiralling around it */
+  fxPerse(pos) {
+    const life = 4.5;
+    const grp = new THREE.Group();
+    grp.position.copy(pos).setY(0.5);
+    const gold = new THREE.MeshStandardMaterial({ color: '#ffcf5a', metalness: 1, roughness: 0.2, emissive: '#ffb020', emissiveIntensity: 0.8, transparent: true });
+    const lapis = new THREE.MeshStandardMaterial({ color: '#1f3fa8', emissive: '#2a5aff', emissiveIntensity: 0.6, transparent: true });
+    grp.add(new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.06, 24).rotateX(Math.PI / 2), lapis));
+    grp.add(new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.06, 8, 28), gold));
+    for (const s of [-1, 1]) for (let k = 0; k < 4; k++) {
+      const f = new THREE.Mesh(new THREE.BoxGeometry(1 - k * 0.18, 0.1, 0.04), gold);
+      f.position.set(s * (0.8 - k * 0.06), 0.15 - k * 0.13, 0); f.rotation.z = s * (0.15 + k * 0.08);
+      grp.add(f);
+    }
+    const dust = [];
+    for (let i = 0; i < 18; i++) { const sp = this.glowSprite(i % 3 ? '#ffd24a' : '#3fe0d0', 0.35); sp.userData = { a: (i / 18) * Math.PI * 2, h: Math.random() * 2 }; grp.add(sp); dust.push(sp); }
+    this.add(grp, life, (dt, k) => {
+      const t = life * (1 - k);
+      grp.position.y = 0.5 + Math.min(t, 1.5) * 1.2;
+      grp.rotation.y = t * 1.4;
+      const op = Math.min(1, t * 3) * Math.min(1, k * 4);
+      gold.opacity = lapis.opacity = op;
+      dust.forEach((d) => { const a = d.userData.a + t * 2; d.position.set(Math.cos(a) * 1.1, Math.sin(t * 2 + d.userData.h) * 0.6, Math.sin(a) * 1.1); d.material.opacity = op; });
+      if (k <= 0.02) grp.traverse((o) => { o.geometry?.dispose(); });
+    });
   }
 
   /** Aurora: a light pillar with spiralling teal/violet ribbons and falling stardust */

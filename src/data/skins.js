@@ -67,6 +67,23 @@ function textures() {
       g.fillStyle = '#2aa04a';
       for (let i = -S + 38; i < S * 2; i += 64) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 8, 0); g.lineTo(i + 8 - S, S); g.lineTo(i - S, S); g.fill(); }
     }, 3),
+    // v2.1 Persepolis: lapis blue with gold geometric (eight-point star) lattice
+    persia: tex((g, S) => {
+      g.fillStyle = '#16307a'; g.fillRect(0, 0, S, S);
+      g.strokeStyle = '#ffcf5a'; g.lineWidth = 3;
+      const step = S / 4;
+      for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+        const cx = x * step + step / 2, cy = y * step + step / 2, r = step * 0.36;
+        for (const rot of [0, Math.PI / 4]) {
+          g.beginPath();
+          for (let k = 0; k < 4; k++) { const a = rot + k * Math.PI / 2; g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); }
+          g.closePath(); g.stroke();
+        }
+        g.fillStyle = '#3fe0d0'; g.beginPath(); g.arc(cx, cy, 4, 0, Math.PI * 2); g.fill();
+      }
+      g.strokeStyle = 'rgba(255,207,90,.5)'; g.lineWidth = 1.5;
+      for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * step, 0); g.lineTo(i * step, S); g.moveTo(0, i * step); g.lineTo(S, i * step); g.stroke(); }
+    }, 2),
   };
   return T;
 }
@@ -94,10 +111,16 @@ export const BUNDLES = [
     killFx: '글리치 홀로그램', weapons: ['smg', 'bow', 'rifle'],
   },
   {
-    id: 'xmas', name: '🎄 홀리 나이트', rarity: 'infinity', price: 0, soon: true, randomCharSkin: true,
+    id: 'xmas', name: '🎄 홀리 나이트', rarity: 'infinity', price: 0, soon: true, season: true, randomCharSkin: true,
     tagline: '눈 내리는 협곡의 크리스마스 이브',
     desc: '사탕지팡이 총열·리본·장식 방울이 달린 무기 4종과, 캐릭터 크리스마스 스킨 중 랜덤 1개(산타·루돌프·눈사람·엘프…). 처치하면 그 자리에서 선물 상자가 터지며 눈이 내립니다.',
     killFx: '선물 상자 눈보라', weapons: ['rifle', 'pistol', 'knife', 'flamer'],
+  },
+  {
+    id: 'perse', name: '🏛️ 페르세폴리스', rarity: 'infinity', price: 4000, season: true, hackOnly: true, outfits: ['perse_volt'],
+    tagline: '고대 페르시아 왕궁의 청금석과 황금',
+    desc: '청금석 바탕에 황금 팔각별 문양, 양옆에 날개 달린 황금 원반과 터키석 장식. 테이저건 · 레일건 스킨에 캐릭터 스킨 「경찰관 볼트」까지 함께 들어 있어요.',
+    killFx: '황금 날개 원반', weapons: ['taser', 'railgun'],
   },
 ];
 
@@ -132,6 +155,16 @@ export function skinMaterials(bundleId) {
       accent: M({ color: '#f0c060', metalness: 1, roughness: 0.22 }),
       steel: M({ color: '#f2c45a', metalness: 1, roughness: 0.2 }),
       blade: M({ color: '#1a1414', metalness: 0.9, roughness: 0.3, emissiveMap: t.lava, emissive: '#ffffff', emissiveIntensity: 1.4 }),
+    };
+  } else if (bundleId === 'perse') {
+    m = {
+      metal: M({ color: '#ffffff', map: t.persia, metalness: 0.7, roughness: 0.3, emissive: '#0a1a4a', emissiveIntensity: 0.2 }),
+      metal2: M({ color: '#ffcf5a', metalness: 1, roughness: 0.22 }),
+      poly: M({ color: '#5a2a1a', roughness: 0.55 }),
+      body: M({ color: '#ffffff', map: t.persia, metalness: 0.6, roughness: 0.3, emissive: '#0a1a4a', emissiveIntensity: 0.2 }),
+      accent: M({ color: '#3fe0d0', emissive: '#1fc8b8', emissiveIntensity: 1.6 }),
+      steel: M({ color: '#ffd77a', metalness: 1, roughness: 0.18 }),
+      blade: M({ color: '#ffffff', map: t.persia, metalness: 0.9, roughness: 0.2 }),
     };
   } else if (bundleId === 'xmas') {
     const candy = t.candy;
