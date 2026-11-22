@@ -137,7 +137,7 @@ WEAPONS.flamer = {
 };
 
 WEAPONS.railgun = {
-  id: 'railgun', cat: 'secondary', name: '레일건', model: 'VOLT-R 전자기 레일건', kind: 'gun', rail: true, rarity: 'mythic', price: 6000,
+  id: 'railgun', cat: 'secondary', name: '레일건', model: 'VOLT-R 전자기 레일건', kind: 'gun', rail: true, rarity: 'mythic', price: 2400,
   desc: '방아쇠를 0.7초 누르고 있으면 충전된 전자기 탄이 발사된다(몸 25 · 머리 50). 일직선 위의 적을 모두 관통한다(벽은 못 뚫음). 일찍 떼면 취소. 우클릭 조준경.',
   damage: 25, head: 50, charge: 0.7, fireInterval: 0.9, auto: true, mag: 4, reserve: 12, reload: 3.2,
   range: 300, adsFov: 30, mobility: 0.9, scope: true,
@@ -156,6 +156,15 @@ WEAPONS.taser = {
   tracer: '#ffe94a', stats: { damage: 15, rate: 10, range: 10, mobility: 95 },
 };
 
+WEAPONS.spear = {
+  id: 'spear', cat: 'secondary', name: '창', model: 'HASTA 투창', kind: 'melee', spear: true, shopOnly: true, noDeal: true, rarity: 'legendary', price: 10000,
+  desc: '좌클릭 찌르기(40) — 칼보다 사거리가 길다. 우클릭으로 창 던지기(40, 머리 80) · 최대 3개. 떨어진 창에 다가가면 주워서 다시 채운다.',
+  damage: 40, heavy: 40, back: 80, range: 4.2, mag: 3, reserve: 0, throwDmg: 40, headMul: 2, throwSpeed: 48,
+  mobility: 1.02, adsFov: 75, lightTime: 0.5, heavyTime: 0.5,
+  spread: { hip: 0, move: 0, ads: 0, bloom: 0, maxBloom: 0 },
+  stats: { damage: 40, rate: 55, range: 25, mobility: 90 },
+};
+
 export const CATEGORIES = [
   { id: "primary", name: "무기1", sub: "돌격" },
   { id: "secondary", name: "무기2", sub: "정밀" },
@@ -163,7 +172,7 @@ export const CATEGORIES = [
 ];
 export const CATEGORY_ORDER = {
   primary: ["smg", "rifle", "shotgun", "lmg", "flamer"],
-  secondary: ["burst", "dmr", "sniper", "bow", "dualmini", "katana", "railgun"],
+  secondary: ["burst", "dmr", "sniper", "bow", "dualmini", "katana", "spear", "railgun"],
   sidearm: ["pistol", "taser", "knife", "grenade", "smoke"],
 };
 export const WEAPON_ORDER = [...CATEGORY_ORDER.primary, ...CATEGORY_ORDER.secondary, ...CATEGORY_ORDER.sidearm];

@@ -208,7 +208,7 @@ export class RemotePlayer {
     g.position.copy(this.position);
     this.model.joints.hips.position.y = 0.98 - this.crouch * 0.4;
     this.model.joints.neck.rotation.x = -this.pitch * 0.6;
-    const melee = this.weaponId === 'knife' || this.weaponId === 'grenade';
+    const melee = this.weaponId === 'knife' || this.weaponId === 'grenade' || this.weaponId === 'spear';
     this.model.gun.visible = !melee;
     // death: fall over; back on the feet when the owner respawns
     if (!this.alive) {

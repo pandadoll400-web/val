@@ -870,6 +870,49 @@ function katana() {
   };
 }
 
+/* ======================= SPEAR ======================= */
+const spearWood = new THREE.MeshStandardMaterial({ color: '#7a5232', roughness: 0.75 });
+const spearGold = new THREE.MeshStandardMaterial({ color: '#ffcf5a', metalness: 0.9, roughness: 0.3 });
+const spearTassel = new THREE.MeshStandardMaterial({ color: '#c8242c', roughness: 0.8 });
+function spearHead(g, z0, s = 1) {
+  const blade = new THREE.MeshStandardMaterial({ color: '#d5dde5', metalness: 1, roughness: 0.15, roughnessMap: VM.steel.roughnessMap });
+  blade.userData.skinSlot = 'blade';
+  // leaf-shaped point (forward = -z), lying flat, with a raised centre ridge
+  const pts = [[0, 0], [0.04, -0.022], [0.11, -0.016], [0.17, 0], [0.11, 0.016], [0.04, 0.022]].map(([a, b]) => [z0 + a * s, b * s]);
+  const m = prof(g, pts, 0.006 * s, blade, 0.0015 * s);
+  m.rotation.z = Math.PI / 2;
+  part(g, B(0.004 * s, 0.008 * s, 0.15 * s), VM.steel, 0, 0, -(z0 + 0.085 * s));
+  part(g, CT(0.011 * s, 0.014 * s, 0.05 * s), spearGold, 0, 0, -(z0 - 0.02 * s));   // socket
+  part(g, new THREE.TorusGeometry(0.016 * s, 0.004 * s, 6, 14), spearGold, 0, 0, -(z0 - 0.05 * s));
+  for (let i = 0; i < 5; i++) {                                                     // red tassel under the head
+    const a = (i / 5) * Math.PI * 2;
+    part(g, B(0.006 * s, 0.006 * s, 0.07 * s), spearTassel, Math.cos(a) * 0.012 * s, Math.sin(a) * 0.012 * s - 0.004 * s, -(z0 - 0.09 * s), 0.25, 0, 0);
+  }
+}
+function spear() {
+  const g = new THREE.Group();
+  part(g, C(0.012, 0.88, 10), spearWood, 0, 0, -0.32);                              // shaft z +0.12 .. -0.76
+  for (const z of [0.0, 0.08]) part(g, C(0.0135, 0.04, 10), VM.rubber, 0, 0, z);    // grip wraps
+  part(g, C(0.015, 0.025, 10), spearGold, 0, 0, 0.12);                              // butt cap
+  spearHead(g, 0.76);
+  g.rotation.set(0.04, 0.1, -0.2);
+  return {
+    group: g, kind: 'melee', bladeTip: point(g, 0, 0, -0.93),
+    muzzle: point(g, 0, 0, -0.93), eject: point(g, 0, 0, 0),
+    sightY: 0, hip: new THREE.Vector3(0.2, -0.21, -0.22), adsZ: -0.3,
+    grip: new THREE.Vector3(0, -0.01, 0.06), leftRest: new THREE.Vector3(-0.25, -0.5, 0.1),
+    flashScale: 0,
+  };
+}
+/** the flying / stuck spear in the world (forward = -z), about 2 m long */
+export function makeThrownSpear() {
+  const g = new THREE.Group();
+  part(g, C(0.022, 1.7, 8), spearWood, 0, 0, 0.55);
+  part(g, C(0.026, 0.05, 8), spearGold, 0, 0, 1.4);
+  spearHead(g, 0.3, 1.8);
+  return g;
+}
+
 /* ======================= FLAMETHROWER ======================= */
 const pilotMat = new THREE.MeshBasicMaterial({ color: '#4fb0ff' });
 function flamer() {
@@ -989,7 +1032,7 @@ function railgun() {
   };
 }
 
-export const GUN_BUILDERS = { pistol, knife, smg, shotgun, rifle, bow, dmr, sniper, lmg, burst, grenade, smoke, dualmini, katana, flamer, railgun, taser };
+export const GUN_BUILDERS = { pistol, knife, smg, shotgun, rifle, bow, dmr, sniper, lmg, burst, grenade, smoke, dualmini, katana, spear, flamer, railgun, taser };
 
 // which skin slot each shared viewmodel material maps to
 const SKIN_SLOT = new Map([

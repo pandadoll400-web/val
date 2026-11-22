@@ -127,8 +127,12 @@ export const CHARACTERS = [
 const RARITY_PRICE = { common: 0, rare: 2500, epic: 5000, legendary: 10000, mythic: 15000, infinity: 30000 };
 for (const c of CHARACTERS) if (c.id !== 'rookie') c.price = RARITY_PRICE[c.rarity];
 
-/** shop "신규 캐릭터!" early access: Chaos until the end of 30 November (local time), 15000 → 14000 + 500 coins back */
-export const EARLY = { char: 'chaos', price: 14000, was: 15000, bonus: 500, until: new Date(2026, 11, 1, 0, 0, 0).getTime() };
-export const earlyOn = () => Date.now() < EARLY.until;
+/** shop "신규 캐릭터!" early access until the end of 30 November (local time): Chaos 15000 → 14000 (+500 back), spear 10000 → 4000 */
+export const EARLY_UNTIL = new Date(2026, 11, 1, 0, 0, 0).getTime();
+export const EARLY_ITEMS = [
+  { type: 'char', id: 'chaos', price: 14000, was: 15000, bonus: 500 },
+  { type: 'weapon', id: 'spear', price: 4000, was: 10000, bonus: 0 },
+];
+export const earlyOn = () => Date.now() < EARLY_UNTIL;
 
 export const getCharacter =(id) => CHARACTERS.find((c) => c.id === id) || CHARACTERS[0];

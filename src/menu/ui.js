@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { save, persist, outfitFor, randomCharSkin } from '../save.js';
 import { CHAR_SKINS, getCharSkin } from '../data/charSkins.js';
-import { CHARACTERS, RARITY, getCharacter, EARLY, earlyOn } from '../data/characters.js';
+import { CHARACTERS, RARITY, getCharacter, EARLY_ITEMS, EARLY_UNTIL, earlyOn } from '../data/characters.js';
 import { WEAPONS, CATEGORIES, CATEGORY_ORDER, getWeapon } from '../data/weapons.js';
 import { makeSoldier } from '../game/soldier.js';
 import { buildGun, getWeaponIcons, getWeaponIcon } from '../game/gunModels.js';
@@ -123,7 +123,7 @@ export class MenuUI {
     const wn = (id) => `<b style="color:${RARITY[WEAPONS[id].rarity].color}">${WEAPONS[id].name}</b>`;
     $('loadout-chip').innerHTML = `캐릭터 <b>${c.name}</b> <span style="color:${RARITY[c.rarity].color}">(${RARITY[c.rarity].name})</span>
       · 무기 ${wn(lo.primary)} / ${wn(lo.secondary)} / ${wn(lo.sidearm)}
-      <div class="ver">v2.3.1 · 빌드 ${__BUILD__}</div>`;
+      <div class="ver">v2.4 · 빌드 ${__BUILD__}</div>`;
   }
 
   /* ---------- characters ---------- */
@@ -278,6 +278,7 @@ export class MenuUI {
     if (WEAPONS[this.viewWeapon]?.cat !== this.viewCat) this.viewWeapon = save.loadout[this.viewCat];
     for (const id of CATEGORY_ORDER[this.viewCat]) {
       if (WEAPONS[id].hackOnly && !isHack()) continue; // (none right now)
+      if (WEAPONS[id].shopOnly && !save.ownedWeapons.includes(id) && !isHack()) continue; // shop-only (early access) weapons show up once bought
       const w = WEAPONS[id];
       const r = RARITY[w.rarity];
       const owned = save.ownedWeapons.includes(id);
@@ -323,6 +324,9 @@ export class MenuUI {
         this.toast(`${catName}: ${w.name} 장착 완료`);
       } else if (notYet(w)) {
         this.toast('🔒 테이저건은 12월부터 코인으로 살 수 있어요');
+        return;
+      } else if (w.shopOnly) {
+        this.toast('🛒 상점에서만 구매할 수 있어요');
         return;
       } else if (save.coins >= priceOf(w.id)) {
         save.coins -= priceOf(w.id);
@@ -383,13 +387,29 @@ export class MenuUI {
     this.bindShop(list);
   }
 
-  /** 신규 캐릭터! tab: early-access card for Chaos */
+  /** 신규 캐릭터! tab: early-access cards (Chaos, spear) under one countdown banner */
   newCharHtml() {
-    const c = getCharacter(EARLY.char), r = RARITY[c.rarity];
-    const owned = save.owned.includes(c.id);
+    const head = `<div class="nc-banner">⚡ 얼리 액세스 · 📅 11월 30일까지만 판매 · <b id="early-left">${this.earlyLeftText()}</b></div>`;
+    return head + EARLY_ITEMS.map((it, i) => (it.type === 'char' ? this.earlyCharHtml(it, i) : this.earlyWeaponHtml(it, i))).join('');
+  }
+
+  earlyOwned(it) { return it.type === 'char' ? save.owned.includes(it.id) : save.ownedWeapons.includes(it.id); }
+
+  earlyFoot(it, i, name) {
+    const owned = this.earlyOwned(it), off = Math.round((1 - it.price / it.was) * 100);
+    return `${it.bonus ? `<div class="nc-bonus">🎁 번들 보너스: 구매하면 <b>◆ ${it.bonus}</b> 지급</div>` : ''}
+      <div class="b-foot">
+        <div class="b-price">${owned ? '보유 중' : `<s>◆ ${it.was.toLocaleString()}</s> ◆ ${it.price.toLocaleString()} <span class="nc-off">-${off}%</span>`}</div>
+        <button class="btn primary small nc-buy" data-i="${i}" ${owned ? 'disabled' : ''}>${owned ? '구매 완료' : '얼리 액세스 구매'}</button>
+      </div>
+      <div class="hint">${owned ? (it.type === 'char' ? '캐릭터 탭에서 선택할 수 있어요' : '무기 탭 무기2에서 장착할 수 있어요') : `${name}은(는) 이 상점에서만 살 수 있어요 (${it.type === 'char' ? '캐릭터' : '무기'} 탭 판매 없음)`}</div>`;
+  }
+
+  earlyCharHtml(it, i) {
+    const c = getCharacter(it.id), r = RARITY[c.rarity];
     const face = getPortrait(c);
     return `<section class="bundle newchar">
-      <div class="b-ribbon" style="background:linear-gradient(90deg,#7a5cff,#ffcf5a)">⚡ 얼리 액세스</div>
+      <div class="b-ribbon" style="background:linear-gradient(90deg,#7a5cff,#ffcf5a)">⚡ 얼리 액세스 · 신규 캐릭터</div>
       <div class="nc-top">
         <div class="nc-face" style="background:linear-gradient(135deg, ${c.color}, ${c.accent})">${face ? `<img src="${face}" alt="">` : c.name[0]}</div>
         <div class="nc-info">
@@ -399,37 +419,59 @@ export class MenuUI {
         </div>
       </div>
       <div class="nc-skills">${['q', 'e'].map((k) => `<div><b><span class="k">${k.toUpperCase()}</span> ${c[k].name}</b><small>${c[k].desc}</small></div>`).join('')}</div>
-      <div class="nc-time">📅 11월 30일까지만 판매 · <b id="early-left">${this.earlyLeftText()}</b></div>
-      <div class="nc-bonus">🎁 번들 보너스: 구매하면 <b>◆ ${EARLY.bonus}</b> 지급</div>
-      <div class="b-foot">
-        <div class="b-price">${owned ? '보유 중' : `<s>◆ ${EARLY.was.toLocaleString()}</s> ◆ ${EARLY.price.toLocaleString()}`}</div>
-        <button class="btn primary small nc-buy" ${owned ? 'disabled' : ''}>${owned ? '구매 완료' : '얼리 액세스 구매'}</button>
+      ${this.earlyFoot(it, i, c.name)}
+    </section>`;
+  }
+
+  earlyWeaponHtml(it, i) {
+    const w = WEAPONS[it.id], r = RARITY[w.rarity], icon = getWeaponIcon(it.id);
+    return `<section class="bundle newchar weapon">
+      <div class="b-ribbon" style="background:linear-gradient(90deg,#c8242c,#ffcf5a)">⚡ 얼리 액세스 · 신규 무기</div>
+      <div class="nc-top">
+        <div class="nc-face wicon">${icon ? `<img src="${icon}" alt="">` : '🔱'}</div>
+        <div class="nc-info">
+          <div class="b-title">🔱 ${w.name} <span class="rbadge" style="background:${r.color}">${r.name}</span></div>
+          <div class="b-tag">${w.model} · 무기2 · 근접</div>
+          <div class="b-desc">${w.desc}</div>
+        </div>
       </div>
-      ${owned ? '<div class="hint">캐릭터 탭에서 카오스를 선택할 수 있어요</div>' : '<div class="hint">카오스는 이 상점에서만 살 수 있어요 (캐릭터 탭 판매 없음)</div>'}
+      <div class="nc-skills">
+        <div><b><span class="k">좌</span> 찌르기 ${w.damage}</b><small>칼보다 긴 사거리(${w.range}m)로 찌른다</small></div>
+        <div><b><span class="k">우</span> 던지기 ${w.throwDmg}</b><small>창 ${w.mag}개 · 머리 ${w.throwDmg * w.headMul} · 떨어진 창을 주워 다시 던진다</small></div>
+      </div>
+      ${this.earlyFoot(it, i, w.name)}
     </section>`;
   }
 
   earlyLeftText() {
-    const s = Math.max(0, Math.floor((EARLY.until - Date.now()) / 1000));
+    const s = Math.max(0, Math.floor((EARLY_UNTIL - Date.now()) / 1000));
     const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
     return `판매 종료까지 ${d ? d + '일 ' : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')} 남음`;
   }
 
   buyEarly(btn) {
-    const c = getCharacter(EARLY.char);
-    if (!earlyOn() || save.owned.includes(c.id)) return;
-    if (save.coins < EARLY.price) {
+    const it = EARLY_ITEMS[+btn.dataset.i];
+    if (!it || !earlyOn() || this.earlyOwned(it)) return;
+    if (save.coins < it.price) {
       this.shake(btn);
-      this.toast(`코인이 부족합니다 (◆ ${(EARLY.price - save.coins).toLocaleString()} 더 필요)`);
+      this.toast(`코인이 부족합니다 (◆ ${(it.price - save.coins).toLocaleString()} 더 필요)`);
       return;
     }
-    save.coins += EARLY.bonus - EARLY.price;
-    save.owned.push(c.id);
-    save.character = c.id;
-    this.viewChar = c.id;
+    save.coins += (it.bonus || 0) - it.price;
+    if (it.type === 'char') {
+      const c = getCharacter(it.id);
+      save.owned.push(c.id);
+      save.character = c.id;
+      this.viewChar = c.id;
+      this.toast(`⏳ ${c.name} 획득! 번들 보너스 ◆${it.bonus} — 캐릭터 탭에서 선택되었어요`);
+    } else {
+      const w = WEAPONS[it.id];
+      save.ownedWeapons.push(w.id);
+      save.loadout[w.cat] = w.id;
+      this.toast(`🔱 ${w.name} 획득! 무기 탭 무기2에 장착됐어요`);
+    }
     persist();
     audio.init(); audio.kill();
-    this.toast(`⏳ ${c.name} 획득! 번들 보너스 ◆${EARLY.bonus} — 캐릭터 탭에서 선택되었어요`);
     this.refresh();
     this.renderShop();
   }

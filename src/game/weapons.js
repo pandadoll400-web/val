@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { WEAPONS } from '../data/weapons.js';
-import { buildGun, makeArm, makeLegs, VM } from './gunModels.js';
+import { buildGun, makeArm, makeLegs, VM, makeThrownSpear } from './gunModels.js';
 import { damp, clamp } from '../util/noise.js';
 import { audio } from '../audio.js';
 import { save, outfitFor } from '../save.js';
@@ -232,6 +232,8 @@ export class WeaponSystem {
     this.bowVis = 0;
     this.nockT = 0;
     this.arrows = [];
+    this.groundSpears = []; // thrown spears lying around, walk over them to pick up
+    this.spearThrowT = -1;
     this.stuck = [];
     this.burstLeft = 0;
     // grenades
@@ -1111,6 +1113,68 @@ export class WeaponSystem {
     game.onPlayerShot(true);
   }
 
+  /* ---------------- spear ---------------- */
+  throwSpear() {
+    const game = this.game, s = this.slot, def = s.def, cam = game.camera;
+    if (this.meleeT >= 0 || this.spearThrowT >= 0 || this.drawT < 0.9) return;
+    if (s.mag <= 0) { game.hud.msg('던질 창이 없습니다 — 떨어진 창을 주우세요', 1.2); audio.dry(); return; }
+    s.mag--;
+    this.spearThrowT = 0;
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
+    const mesh = makeThrownSpear();
+    const pos = cam.position.clone().addScaledVector(fwd, 0.8).add(new THREE.Vector3(0, -0.05, 0));
+    mesh.position.copy(pos);
+    game.scene.add(mesh);
+    this.arrows.push({ mesh, pos, vel: fwd.multiplyScalar(def.throwSpeed), power: 1, life: 6, skin: s.skin, spear: true });
+    game.player.addRecoil(0.01, 0);
+    audio.slash(true);
+    game.hud.onWeaponChange?.();
+    this.game.skills.onPlayerShot();
+    game.onPlayerShot(true);
+  }
+
+  /** a thrown spear comes to rest: stuck in the ground (or a wall) where it can be picked up again */
+  dropSpear(mesh, at) {
+    const game = this.game;
+    mesh.parent?.remove(mesh);
+    mesh.position.copy(at);
+    game.scene.add(mesh);
+    const glow = game.effects.glowSprite('#ffcf5a', 0.9);
+    glow.position.set(0, 0, 0.6);
+    mesh.add(glow);
+    this.groundSpears.push({ mesh, glow, at: at.clone(), t: 0 });
+    if (this.groundSpears.length > 9) this.removeGroundSpear(0, false);
+  }
+
+  removeGroundSpear(i, picked) {
+    const g = this.groundSpears[i];
+    this.game.scene.remove(g.mesh);
+    g.mesh.traverse((o) => { if (o.isMesh) o.geometry.dispose(); if (o.isSprite) o.material.dispose(); });
+    this.groundSpears.splice(i, 1);
+    // a spear that vanished unpicked still comes back if I have none left (never stuck without spears)
+    if (!picked) { const sl = this.slots.find((x) => x.def.spear); if (sl && sl.mag <= 0) sl.mag = 1; }
+  }
+
+  updateGroundSpears(dt) {
+    if (!this.groundSpears.length) return;
+    const p = this.game.player, sl = this.slots.find((x) => x.def.spear);
+    for (let i = this.groundSpears.length - 1; i >= 0; i--) {
+      const g = this.groundSpears[i];
+      g.t += dt;
+      g.glow.material.opacity = 0.55 + Math.sin(g.t * 4) * 0.3;
+      if (g.t > 60) { this.removeGroundSpear(i, false); continue; }
+      if (!p.alive || !sl || sl.mag >= sl.def.mag) continue;
+      const dx = g.at.x - p.position.x, dz = g.at.z - p.position.z;
+      if (dx * dx + dz * dz < 1.7 * 1.7 && Math.abs(g.at.y - p.position.y) < 2.2) {
+        sl.mag++;
+        this.removeGroundSpear(i, true);
+        audio.magIn();
+        this.game.hud.msg(`🔱 창 회수 (${sl.mag}/${sl.def.mag})`, 1);
+        this.game.hud.onWeaponChange?.();
+      }
+    }
+  }
+
   /* ---------------- bow ---------------- */
   makeArrowMesh() {
     const g = new THREE.Group();
@@ -1151,13 +1215,13 @@ export class WeaponSystem {
   }
 
   updateArrows(dt) {
-    const game = this.game, def = WEAPONS.bow;
+    const game = this.game, def = WEAPONS.bow, sdef = WEAPONS.spear;
     const ray = this.raycaster;
     for (let i = this.arrows.length - 1; i >= 0; i--) {
       const a = this.arrows[i];
       a.life -= dt;
       const prev = a.pos.clone();
-      a.vel.y -= 9.8 * 0.55 * dt;
+      a.vel.y -= 9.8 * (a.spear ? 0.7 : 0.55) * dt;
       a.pos.addScaledVector(a.vel, dt);
       const seg = a.pos.clone().sub(prev);
       const len = seg.length();
@@ -1166,24 +1230,33 @@ export class WeaponSystem {
       const hit = ray.intersectObjects(game.world.solids.concat(game.enemyMeshes()), false)[0];
       a.mesh.position.copy(a.pos);
       a.mesh.lookAt(a.pos.clone().sub(a.vel));
-      if (Math.random() < 0.5) game.effects.puff(a.pos.clone(), '#bff0ff', 0.12, 0.25, 0.4);
+      if (Math.random() < 0.5) game.effects.puff(a.pos.clone(), a.spear ? '#ffe6a0' : '#bff0ff', 0.12, 0.25, 0.4);
       if (hit) {
         const enemy = hit.object.userData.enemy;
         a.mesh.position.copy(hit.point).addScaledVector(ray.ray.direction, 0.25);
         if (enemy && enemy.alive) {
           const head = this.game.hack || hit.object.userData.part === 'head';
-          const dmg = game.player.weakT > 0 ? 1 : Math.round((def.damage + (def.maxDamage - def.damage) * a.power) * (head ? def.headMul : 1) * game.skills.damageMul());
-          const res = enemy.applyDamage(dmg, { weapon: def.name, headshot: head, from: 'player', point: hit.point, skin: a.skin });
+          const base = a.spear ? sdef.throwDmg * (head ? sdef.headMul : 1) : (def.damage + (def.maxDamage - def.damage) * a.power) * (head ? def.headMul : 1);
+          const dmg = game.player.weakT > 0 ? 1 : Math.round(base * game.skills.damageMul());
+          const res = enemy.applyDamage(dmg, { weapon: a.spear ? sdef.name : def.name, headshot: head, from: 'player', point: hit.point, skin: a.skin });
           game.hud.hitmarker(res.killed ? 'kill' : head ? 'head' : 'hit');
           game.hud.damageNumber(hit.point, dmg, head);
           game.effects.impact(hit.point, null, 'hit');
           if (res.killed) audio.kill(); else audio.hit(head);
           game.hits++;
-          // stick into the body part
+          // stick into the body part (a spear falls at the target's feet instead)
+          if (a.spear) {
+            const at = enemy.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.8, 0.5, (Math.random() - 0.5) * 0.8));
+            a.mesh.rotation.set(-1.2 + Math.random() * 0.3, Math.random() * 6.28, 0, 'YXZ');
+            this.dropSpear(a.mesh, at);
+            this.arrows.splice(i, 1);
+            continue;
+          }
           hit.object.attach(a.mesh);
         } else {
           const n = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : null;
           game.effects.impact(hit.point, n, 'ice');
+          if (a.spear) { this.dropSpear(a.mesh, a.mesh.position.clone()); this.arrows.splice(i, 1); continue; }
         }
         a.mesh.children.filter((c) => c.isSprite).forEach((c) => a.mesh.remove(c));
         this.stuck.push({ mesh: a.mesh, t: 10 });
@@ -1191,7 +1264,8 @@ export class WeaponSystem {
         this.arrows.splice(i, 1);
         continue;
       }
-      if (a.life <= 0 || a.pos.y < -5) { game.scene.remove(a.mesh); this.arrows.splice(i, 1); }
+      if (a.spear && a.pos.y <= 0.05) { a.mesh.position.y = 0.4; this.dropSpear(a.mesh, a.mesh.position.clone()); this.arrows.splice(i, 1); continue; }
+      if (a.life <= 0 || a.pos.y < -5) { game.scene.remove(a.mesh); this.arrows.splice(i, 1); if (a.spear) { const sl = this.slots.find((x) => x.def.spear); if (sl && sl.mag <= 0) sl.mag = 1; } }
     }
     for (let i = this.stuck.length - 1; i >= 0; i--) {
       const st = this.stuck[i];
@@ -1259,6 +1333,7 @@ export class WeaponSystem {
     if (this.autoReloadAt && this.time >= this.autoReloadAt && this.cycleP < 0) { this.autoReloadAt = 0; this.reload(); }
     if (def.kind === 'melee') {
       if (def.guard) this.guarding = this.adsHeld && p.alive && this.meleeT < 0 && this.drawT >= 0.9 && !game.skills.bikeT;
+      else if (def.spear) { if (this.adsHeld && !this.adsUsed && p.alive) { this.throwSpear(); this.adsUsed = true; } }
       else if (this.adsHeld && !this.adsUsed && p.alive) { this.melee(true); this.adsUsed = true; }
       if (!this.adsHeld) this.adsUsed = false;
       if (this.meleeT >= 0) {
@@ -1272,6 +1347,8 @@ export class WeaponSystem {
     if (def.kind === 'bow') this.updateBow(dt);
     if (def.kind === 'grenade') this.updateThrow(dt);
     this.updateArrows(dt);
+    this.updateGroundSpears(dt);
+    if (this.spearThrowT >= 0) { this.spearThrowT += dt / 0.45; if (this.spearThrowT >= 1) this.spearThrowT = -1; }
     this.updateGrenades(dt);
     this.updateCast(dt);
 
@@ -1327,7 +1404,17 @@ export class WeaponSystem {
         : kf([[0, Z3], [0.35, [0.45, -0.25, 0.35]], [0.5, [-0.7, 0.15, -0.15]], [0.75, [-0.35, 0, 0]], [1, Z3]], t);
       pos.add(new THREE.Vector3(tp[0], tp[1], tp[2]));
     }
-    if (this.meleeT >= 0) {
+    if (this.meleeT >= 0 && def.spear) {
+      const t = this.meleeT;
+      const mp = kf([[0, Z3], [0.3, [0.01, -0.01, 0.1]], [0.45, [-0.03, 0.02, -0.36]], [0.7, [-0.02, 0.01, -0.3]], [1, Z3]], t);
+      pos.add(new THREE.Vector3(mp[0], mp[1], mp[2]));
+      irot = kf([[0, Z3], [0.3, [0.05, 0, 0]], [0.45, [-0.08, 0.05, 0]], [1, Z3]], t);
+    } else if (this.spearThrowT >= 0) {
+      const t = this.spearThrowT;
+      const tp = kf([[0, Z3], [0.3, [0.04, 0.1, 0.12]], [0.45, [-0.02, 0.04, -0.3]], [0.6, [0, -0.35, -0.1]], [1, Z3]], t);
+      pos.add(new THREE.Vector3(tp[0], tp[1], tp[2]));
+      irot = kf([[0, Z3], [0.3, [0.35, 0, 0.1]], [0.45, [-0.3, 0, 0]], [0.6, [-0.9, 0, 0]], [1, Z3]], t);
+    } else if (this.meleeT >= 0) {
       const t = this.meleeT, sd = this.meleeSide;
       const mp = this.meleeHeavy
         ? kf([[0, Z3], [0.35, [0.02, -0.02, 0.1]], [0.55, [-0.06, 0.03, -0.24]], [0.75, [-0.05, 0.02, -0.2]], [1, Z3]], t)

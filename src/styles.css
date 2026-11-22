@@ -900,3 +900,11 @@ em.rk { font-style: normal; margin-right: 3px; }
 .nc-bonus b { color: #6dffa8; }
 .bundle.newchar .b-price s { color: #9aa6b8; font-size: .8em; margin-right: 6px; }
 @media (max-width: 640px) { .nc-face { width: 84px; height: 84px; } .nc-skills { grid-template-columns: 1fr; } }
+
+/* v2.4: early access banner + weapon card */
+.nc-banner { margin: 2px 0 10px; padding: 9px 12px; border-radius: 12px; font-size: 13px; font-weight: 800; color: #fff1c8; background: linear-gradient(90deg, rgba(122,92,255,.35), rgba(255,207,90,.25)); border: 1px solid rgba(255,207,90,.45); }
+.nc-banner b { color: #ff9a5a; font-variant-numeric: tabular-nums; }
+.nc-off { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: #ff4d5e; color: #fff; font-size: 12px; font-weight: 900; vertical-align: middle; }
+.bundle.newchar.weapon { background: radial-gradient(ellipse at 30% 0%, #6a1a22 0%, #2a1010 55%, #3a2a08 100%); }
+.nc-face.wicon { background: radial-gradient(circle, #3a2a1a, #120c08); box-shadow: 0 0 22px rgba(255,120,80,.45); }
+.nc-face.wicon img { object-fit: contain; transform: scale(1.15); }
